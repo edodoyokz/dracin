@@ -85,10 +85,15 @@ export class ShortMaxAdapter extends BaseProviderAdapter {
   readonly slug = 'shortmax';
 
   mapHome(response: unknown): DramaCard[] {
-    const resp = response as ShortMaxHomeResponse;
+    const unwrapped = this.unwrapResponse(response);
+    const resp = unwrapped as ShortMaxHomeResponse;
 
     // Handle various response structures
-    const items = resp?.data || resp?.dramas || resp?.list || resp?.feed || resp?.recommend || resp?.foryou || (Array.isArray(response) ? response as ShortMaxDrama[] : []);
+    const items = resp?.list || resp?.data || resp?.dramas || resp?.feed || resp?.recommend || resp?.foryou || (Array.isArray(unwrapped) ? unwrapped as ShortMaxDrama[] : []);
+
+    if (!Array.isArray(items)) {
+      return [];
+    }
 
     return items.map(item => this.mapDramaToCard(item));
   }

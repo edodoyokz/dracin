@@ -1,34 +1,35 @@
-import type { Provider, ProviderCapabilities, Intent, ResolvedEndpoint, ProviderEndpoint } from '../types';
-import catalogData from './catalog.json';
-
-interface CatalogData {
-  generatedAt: string;
-  host: string;
-  authHeader: string;
-  providers: Provider[];
+export interface ProviderEndpoint {
+  method?: string;
+  path: string;
+  pathParams: string[];
 }
+
+export type Intent = 'home' | 'search' | 'detail' | 'episodes' | 'playback' | 'subtitle' | 'unlock';
+
+export interface ResolvedEndpoint {
+  provider: string;
+  intent: Intent;
+  endpoint: ProviderEndpoint;
+  url: string;
+  missingParams: string[];
+}
+
+interface Provider {
+  slug: string;
+  baseUrl: string;
+  status: string;
+  endpoints: ProviderEndpoint[];
+}
+
+import catalogData from './catalog.json';
 
 class ProviderCatalog {
   private providers: Map<string, Provider> = new Map();
-  private capabilities: Map<string, ProviderCapabilities> = new Map();
 
   constructor() {
-    this.loadFromJson();
-  }
-
-  private loadFromJson(): void {
-    const data = catalogData as CatalogData;
-    
-    for (const provider of data.providers) {
-      this.providers.set(provider.slug, provider);
-      if (provider.capabilities) {
-        this.capabilities.set(provider.slug, provider.capabilities);
-      }
+    for (const provider of catalogData.providers) {
+      this.providers.set(provider.slug, provider as Provider);
     }
-  }
-
-  getProvider(slug: string): Provider | undefined {
-    return this.providers.get(slug);
   }
 
   getAllProviders(): Provider[] {
@@ -39,8 +40,8 @@ class ProviderCatalog {
     return this.getAllProviders().filter(p => p.status === 'active');
   }
 
-  getCapabilities(slug: string): ProviderCapabilities | undefined {
-    return this.capabilities.get(slug);
+  getProvider(slug: string): Provider | undefined {
+    return this.providers.get(slug);
   }
 
   resolveEndpoint(
@@ -53,7 +54,7 @@ class ProviderCatalog {
       return null;
     }
 
-    const endpoint = this.findBestEndpoint(provider.endpoints, intent);
+    const endpoint = this.findBestEndpoint(provider.endpoints, intent, params);
     if (!endpoint) {
       return null;
     }
@@ -79,46 +80,77 @@ class ProviderCatalog {
     };
   }
 
-  private findBestEndpoint(endpoints: ProviderEndpoint[], intent: Intent): ProviderEndpoint | null {
+  private findBestEndpoint(
+    endpoints: ProviderEndpoint[],
+    intent: Intent,
+    params: Record<string, string> = {}
+  ): ProviderEndpoint | null {
     const patterns = this.getIntentPatterns(intent);
-    
+    const hasParams = Object.keys(params).length > 0;
+
     for (const pattern of patterns) {
-      const match = endpoints.find(ep => {
+      const matches = endpoints.filter(ep => {
         if (pattern.method && ep.method !== pattern.method) return false;
         return pattern.regex.test(ep.path);
       });
-      if (match) return match;
+
+      if (matches.length === 0) continue;
+
+      if (hasParams) {
+        const parameterized = matches.find(ep =>
+          ep.pathParams.some(pp => params[pp] !== undefined)
+        );
+        if (parameterized) return parameterized;
+      }
+
+      return matches[0];
     }
 
     return null;
   }
 
   private getIntentPatterns(intent: Intent): Array<{ method?: string; regex: RegExp }> {
+    const homePattern = /\/(foryou|for-you|home|homepage|feed)/i;
+    const tabsPattern = /\/(tabs|browsing)/i;
+    const popularPattern = /\/(popular|hot|hot-rank|dramas)$/i;
+    const searchPattern = /search/i;
+    const detailDramaPattern = new RegExp('/(drama|dramas|series|book)/:', 'i');
+    const detailInfoPattern = new RegExp('/(detail|info)/:', 'i');
+    const episodesPattern = /\/(episodes|chapters)/i;
+    const bookEpisodesPattern = new RegExp('/book/.*/episodes', 'i');
+    const playPattern = /\/(play|stream)/i;
+    const videoPattern = /\/video/i;
+    const epPlayPattern = new RegExp('/(episode|episodes)/.*/(?:play|video)', 'i');
+    const subtitlePattern = /subtitle/i;
+    const unlockPattern = /unlock/i;
+
     const patterns: Record<Intent, Array<{ method?: string; regex: RegExp }>> = {
       home: [
-        { regex: /\/(foryou|home|homepage|feed)/i },
+        { regex: homePattern },
+        { regex: tabsPattern },
+        { regex: popularPattern },
       ],
       search: [
-        { regex: /search/i },
+        { regex: searchPattern },
       ],
       detail: [
-        { regex: /\/(drama|dramas|series|book)\/:/i },
-        { regex: /\/(detail|info)\/:/i },
+        { regex: detailDramaPattern },
+        { regex: detailInfoPattern },
       ],
       episodes: [
-        { regex: /\/(episodes|chapters)/i },
-        { regex: /\/book\/.*\/episodes/i },
+        { regex: episodesPattern },
+        { regex: bookEpisodesPattern },
       ],
       playback: [
-        { regex: /\/(play|stream)/i },
-        { regex: /\/video/i },
-        { regex: /\/(episode|episodes)\/.*\/(play|video)/i },
+        { regex: playPattern },
+        { regex: videoPattern },
+        { regex: epPlayPattern },
       ],
       subtitle: [
-        { regex: /subtitle/i },
+        { regex: subtitlePattern },
       ],
       unlock: [
-        { method: 'POST', regex: /unlock/i },
+        { method: 'POST', regex: unlockPattern },
       ],
     };
 

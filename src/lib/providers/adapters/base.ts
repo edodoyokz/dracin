@@ -28,4 +28,26 @@ export abstract class BaseProviderAdapter implements ProviderAdapter {
       vipLevel: 'VIP9',
     };
   }
+
+  /**
+   * Unwrap common outer wrappers from Captain API responses.
+   * Handles: { success, data }, { code, data }, { data, cached }, etc.
+   * Returns the inner data if an outer wrapper is detected.
+   */
+  protected unwrapResponse(response: unknown): unknown {
+    if (!response || typeof response !== 'object' || Array.isArray(response)) {
+      return response;
+    }
+    const raw = response as Record<string, unknown>;
+    // Check for common wrapper patterns with a `data` field
+    const hasData = raw.data !== undefined;
+    const isWrapper = hasData && (
+      raw.success !== undefined ||  // { success, data }
+      raw.code !== undefined ||     // { code, data }
+      raw.cached !== undefined ||   // { data, cached }
+      raw.status !== undefined ||   // { data, status }
+      raw.message !== undefined     // { data, message }
+    );
+    return isWrapper ? raw.data : response;
+  }
 }

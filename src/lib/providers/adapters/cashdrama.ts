@@ -74,7 +74,8 @@ export class CashDramaAdapter extends BaseProviderAdapter {
   readonly slug = 'cashdrama';
 
   mapHome(response: unknown): DramaCard[] {
-    const resp = response as CashDramaHomeResponse;
+    const unwrapped = this.unwrapResponse(response);
+    const resp = unwrapped as CashDramaHomeResponse;
 
     // Handle blocks structure: { blocks: [{ name, dramas: [] }] }
     if (resp?.blocks && Array.isArray(resp.blocks)) {
@@ -83,7 +84,11 @@ export class CashDramaAdapter extends BaseProviderAdapter {
     }
 
     // Handle various response structures
-    const items = resp?.data || resp?.dramas || resp?.list || (Array.isArray(response) ? response as CashDramaDrama[] : []);
+    const items = resp?.list || resp?.data || resp?.dramas || (Array.isArray(unwrapped) ? unwrapped as CashDramaDrama[] : []);
+
+    if (!Array.isArray(items)) {
+      return [];
+    }
 
     return items.map(item => this.mapDramaToCard(item));
   }

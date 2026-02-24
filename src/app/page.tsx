@@ -6,7 +6,7 @@ import { Play, Search, TrendingUp, User, Crown } from 'lucide-react';
 import { useHomeDramas } from '../hooks/useHome';
 
 export default function HomePage() {
-  const { dramas, loading } = useHomeDramas();
+  const { dramas, loading, error } = useHomeDramas();
   const [isPremium] = useState(false);
 
   const featuredDrama = dramas[0];
@@ -37,6 +37,20 @@ export default function HomePage() {
         {loading ? (
           <div className="flex items-center justify-center h-96">
             <div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-96 text-center px-4 animate-fade-in">
+            <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-4">
+              <span className="text-red-500 text-2xl">⚠️</span>
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">Gagal Memuat Data</h2>
+            <p className="text-red-400 max-w-md">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-6 px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+            >
+              Coba Lagi
+            </button>
           </div>
         ) : (
           <>

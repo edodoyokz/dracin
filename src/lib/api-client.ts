@@ -6,39 +6,43 @@ async function fetchAPI<T>(url: string): Promise<{ data: T | null; error: string
   try {
     const response = await fetch(url);
     const result = await response.json();
-    
+
     if (result.error) {
       return { data: null, error: result.error.message };
     }
-    
+
     return { data: result.data, error: null };
   } catch (error) {
-    return { 
-      data: null, 
-      error: error instanceof Error ? error.message : 'Network error' 
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : 'Network error'
     };
   }
 }
 
 export async function getHomeDramas(): Promise<DramaCard[]> {
-  const { data } = await fetchAPI<DramaCard[]>(`${API_BASE}/home`);
+  const { data, error } = await fetchAPI<DramaCard[]>(`${API_BASE}/home`);
+  if (error) throw new Error(error);
   return data || [];
 }
 
 export async function getDramaDetail(id: string): Promise<DramaDetail | null> {
-  const { data } = await fetchAPI<DramaDetail>(`${API_BASE}/dramas/${id}`);
+  const { data, error } = await fetchAPI<DramaDetail>(`${API_BASE}/dramas/${id}`);
+  if (error) throw new Error(error);
   return data;
 }
 
 export async function getDramaEpisodes(id: string): Promise<EpisodeItem[]> {
-  const { data } = await fetchAPI<EpisodeItem[]>(`${API_BASE}/dramas/${id}/episodes`);
+  const { data, error } = await fetchAPI<EpisodeItem[]>(`${API_BASE}/dramas/${id}/episodes`);
+  if (error) throw new Error(error);
   return data || [];
 }
 
 export async function searchDramas(query: string): Promise<DramaCard[]> {
-  const { data } = await fetchAPI<DramaCard[]>(
+  const { data, error } = await fetchAPI<DramaCard[]>(
     `${API_BASE}/search?q=${encodeURIComponent(query)}`
   );
+  if (error) throw new Error(error);
   return data || [];
 }
 

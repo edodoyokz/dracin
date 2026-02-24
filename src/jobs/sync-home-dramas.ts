@@ -23,10 +23,20 @@ export async function syncHomeDramas(): Promise<void> {
   const limiter = getRateLimiter();
 
   try {
-    // Get active providers (golden 5 for initial sync)
-    const activeProviders = providerCatalog.getActiveProviders()
-      .filter(p => p.status === 'active')
-      .slice(0, 5);
+    // Get active providers that have adapters (prioritize providers we can actually parse)
+    const allActive = providerCatalog.getActiveProviders()
+      .filter(p => p.status === 'active');
+
+    // Prioritize providers that have registered adapters
+    const withAdapters = allActive.filter(p => getAdapter(p.slug));
+    const withoutAdapters = allActive.filter(p => !getAdapter(p.slug));
+    const activeProviders = [...withAdapters, ...withoutAdapters].slice(0, 10);
+
+    logger.info('sync_home_providers_selected', {
+      total: allActive.length,
+      withAdapters: withAdapters.map(p => p.slug),
+      selected: activeProviders.map(p => p.slug),
+    });
 
     for (const provider of activeProviders) {
       const limitCheck = await limiter.checkBoth(provider.slug);
@@ -35,7 +45,16 @@ export async function syncHomeDramas(): Promise<void> {
         continue;
       }
 
-      const resolved = providerCatalog.resolveEndpoint(provider.slug, 'home', {});
+      // Some providers need path params for their home-like endpoints
+      const defaultHomeParams: Record<string, Record<string, string>> = {
+        flextv: { name: 'Fokus' },
+      };
+
+      const resolved = providerCatalog.resolveEndpoint(
+        provider.slug,
+        'home',
+        defaultHomeParams[provider.slug] || {}
+      );
 
       if (!resolved) {
         logger.warn('sync_home_no_endpoint', { provider: provider.slug });
@@ -53,7 +72,20 @@ export async function syncHomeDramas(): Promise<void> {
         continue;
       }
 
-      const dramas: DramaCard[] = adapter.mapHome(response.data);
+      // Pass the raw Captain+provider response to the adapter
+      // Each adapter handles its own response structure unwrapping
+      const providerData = response.data;
+
+      let dramas: DramaCard[];
+      try {
+        dramas = adapter.mapHome(providerData);
+      } catch (mapErr) {
+        logger.error('sync_home_adapter_map_failed', {
+          provider: provider.slug,
+          error: mapErr instanceof Error ? mapErr.message : 'Unknown',
+        });
+        continue;
+      }
 
       for (const drama of dramas) {
         const { error } = await supabase

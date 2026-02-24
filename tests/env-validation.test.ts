@@ -62,6 +62,7 @@ describe('Environment Validation', () => {
                 UPSTASH_REDIS_REST_TOKEN: 'test-redis-token',
                 CAPTAIN_API_TOKEN: 'test-captain-token',
             };
+            delete process.env.NEXT_PUBLIC_SUPABASE_URL;
 
             const { preflightEnvCheck } = await importFreshEnv();
             const result = preflightEnvCheck();
@@ -81,6 +82,7 @@ describe('Environment Validation', () => {
                 UPSTASH_REDIS_REST_TOKEN: 'test-redis-token',
                 CAPTAIN_API_TOKEN: 'test-captain-token',
             };
+            delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 
             const { preflightEnvCheck } = await importFreshEnv();
             const result = preflightEnvCheck();
@@ -100,6 +102,8 @@ describe('Environment Validation', () => {
                 UPSTASH_REDIS_REST_TOKEN: 'test-redis-token',
                 CAPTAIN_API_TOKEN: 'test-captain-token',
             };
+            delete process.env.UPSTASH_REDIS_REST_URL;
+            delete process.env.KV_REST_API_URL;
 
             const { preflightEnvCheck } = await importFreshEnv();
             const result = preflightEnvCheck();
@@ -119,6 +123,8 @@ describe('Environment Validation', () => {
                 // Missing UPSTASH_REDIS_REST_TOKEN
                 CAPTAIN_API_TOKEN: 'test-captain-token',
             };
+            delete process.env.UPSTASH_REDIS_REST_TOKEN;
+            delete process.env.KV_REST_API_TOKEN;
 
             const { preflightEnvCheck } = await importFreshEnv();
             const result = preflightEnvCheck();
@@ -138,6 +144,7 @@ describe('Environment Validation', () => {
                 UPSTASH_REDIS_REST_TOKEN: 'test-redis-token',
                 // Missing CAPTAIN_API_TOKEN
             };
+            delete process.env.CAPTAIN_API_TOKEN;
 
             const { preflightEnvCheck } = await importFreshEnv();
             const result = preflightEnvCheck();
@@ -155,6 +162,12 @@ describe('Environment Validation', () => {
                 NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key',
                 // Missing: SUPABASE_SERVICE_ROLE_KEY, UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN, CAPTAIN_API_TOKEN
             };
+            delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+            delete process.env.UPSTASH_REDIS_REST_URL;
+            delete process.env.UPSTASH_REDIS_REST_TOKEN;
+            delete process.env.CAPTAIN_API_TOKEN;
+            delete process.env.KV_REST_API_URL;
+            delete process.env.KV_REST_API_TOKEN;
 
             const { preflightEnvCheck } = await importFreshEnv();
             const result = preflightEnvCheck();
@@ -250,6 +263,13 @@ describe('Environment Validation', () => {
                 NODE_ENV: 'test',
                 // Missing all required vars
             };
+            delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+            delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+            delete process.env.UPSTASH_REDIS_REST_URL;
+            delete process.env.UPSTASH_REDIS_REST_TOKEN;
+            delete process.env.CAPTAIN_API_TOKEN;
+            delete process.env.KV_REST_API_URL;
+            delete process.env.KV_REST_API_TOKEN;
 
             const { getServerEnv } = await importFreshEnv();
 
