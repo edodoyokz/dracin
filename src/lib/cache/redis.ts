@@ -1,5 +1,5 @@
 import { Redis } from '@upstash/redis';
-import { getServerEnv } from '../config/env';
+import { getServerEnv, getRedisUrl, getUpstashCredentials } from '../config/env';
 
 export class CacheManager {
   private redis: Redis;
@@ -67,13 +67,54 @@ let cacheInstance: CacheManager | null = null;
  * Get the CacheManager singleton.
  * Uses validated environment variables from centralized config.
  * Server-side only - validates secrets on first access.
+ *
+ * Uses Vercel auto-generated Upstash Redis variables:
+ * - KV_REST_API_URL (or legacy UPSTASH_REDIS_REST_URL)
+ * - KV_REST_API_TOKEN (or legacy UPSTASH_REDIS_REST_TOKEN)
  */
 export function getCacheManager(): CacheManager {
   if (!cacheInstance) {
     // This will throw with clear error messages if env vars are missing
-    const env = getServerEnv();
-    cacheInstance = new CacheManager(env.UPSTASH_REDIS_REST_URL, env.UPSTASH_REDIS_REST_TOKEN);
+    const credentials = getUpstashCredentials();
+    cacheInstance = new CacheManager(credentials.url, credentials.token);
   }
 
   return cacheInstance;
+}
+
+/**
+ * Create a new CacheManager instance with explicit credentials.
+ * Useful for testing or when you need multiple cache instances.
+ *
+ * Uses Vercel auto-generated Upstash Redis variables:
+ * - KV_REST_API_URL (or legacy UPSTASH_REDIS_REST_URL)
+ * - KV_REST_API_TOKEN (or legacy UPSTASH_REDIS_REST_TOKEN)
+ */
+export function createCacheManager(): CacheManager {
+  const credentials = getUpstashCredentials();
+  return new CacheManager(credentials.url, credentials.token);
+}
+
+/**
+ * Get Redis URL for direct Redis connections.
+ * Vercel auto-generates REDIS_URL or KV_URL (they are identical).
+ * This is useful when you need to use a Redis client other than @upstash/redis.
+ *
+ * @returns The Redis connection URL or undefined if not configured
+ */
+export function getDirectRedisUrl(): string | undefined {
+  return getRedisUrl();
+}
+
+/**
+ * Check if Redis cache is properly configured.
+ * Useful for health checks and graceful degradation.
+ */
+export function isCacheConfigured(): boolean {
+  try {
+    const credentials = getUpstashCredentials();
+    return !!(credentials.url && credentials.token);
+  } catch {
+    return false;
+  }
 }

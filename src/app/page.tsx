@@ -14,8 +14,8 @@ export default function HomePage() {
   const popularDramas = dramas.slice(4, 8);
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md p-4 flex items-center justify-between border-b border-slate-900">
+    <div className="min-h-screen bg-neutral-950 selection:bg-red-500/30">
+      <header className="sticky top-0 z-40 bg-neutral-950/40 backdrop-blur-xl p-4 flex items-center justify-between border-b border-white/5 transition-all duration-300">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
             <Play fill="white" size={16} />
@@ -42,14 +42,14 @@ export default function HomePage() {
           <>
             {featuredDrama && (
               <Link href={`/dramas/${featuredDrama.id}`}>
-                <div className="relative w-full aspect-[3/4] overflow-hidden cursor-pointer">
-                  <img 
-                    src={featuredDrama.coverUrl} 
-                    className="w-full h-full object-cover" 
+                <div className="relative w-full aspect-3/4 overflow-hidden cursor-pointer group animate-fade-in shadow-2xl">
+                  <img
+                    src={featuredDrama.coverUrl}
+                    className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                     alt={featuredDrama.title}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
-                  <div className="absolute bottom-6 left-6 right-6">
+                  <div className="absolute inset-0 bg-linear-to-t from-neutral-950 via-neutral-950/40 to-black/10 opacity-90" />
+                  <div className="absolute bottom-6 left-6 right-6 transform transition-transform duration-500 group-hover:-translate-y-2">
                     <div className="flex items-center space-x-2 mb-2">
                       <span className="bg-red-600 text-[10px] font-black px-2 py-0.5 rounded uppercase">
                         Baru
@@ -58,10 +58,10 @@ export default function HomePage() {
                         #1 Hari Ini
                       </span>
                     </div>
-                    <h1 className="text-3xl font-black mb-4 leading-tight">
+                    <h1 className="text-4xl font-black mb-5 leading-tight tracking-tight drop-shadow-lg text-white">
                       {featuredDrama.title}
                     </h1>
-                    <button className="flex items-center justify-center space-x-2 bg-white text-black py-3 rounded-xl font-bold text-sm w-full">
+                    <button className="flex items-center justify-center space-x-2 bg-white text-black py-3.5 rounded-xl font-bold text-sm w-full transition-all duration-300 hover:scale-105 hover:bg-neutral-200 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] active:scale-95">
                       <Play size={18} fill="black" />
                       <span>Tonton Sekarang</span>
                     </button>
@@ -74,26 +74,27 @@ export default function HomePage() {
               <section className="mt-8 px-4">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-2">
-                    <TrendingUp size={20} className="text-red-500" />
-                    <h2 className="text-lg font-black">Trending</h2>
+                    <TrendingUp size={20} className="text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+                    <h2 className="text-xl font-black tracking-tight">Trending</h2>
                   </div>
                 </div>
-                <div className="flex space-x-4 overflow-x-auto pb-4 scrollbar-hide">
+                <div className="flex space-x-4 overflow-x-auto pb-6 scrollbar-hide snap-x">
                   {trendingDramas.map((drama) => (
-                    <Link 
+                    <Link
                       key={drama.id}
                       href={`/dramas/${drama.id}`}
-                      className="flex-shrink-0 w-32"
+                      className="shrink-0 w-32"
                     >
-                      <div className="aspect-[2/3] rounded-xl overflow-hidden mb-2">
-                        <img 
-                          src={drama.coverUrl} 
-                          className="w-full h-full object-cover" 
+                      <div className="aspect-2/3 rounded-xl overflow-hidden mb-3 relative group ring-1 ring-white/10 shadow-lg">
+                        <img
+                          src={drama.coverUrl}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                           alt={drama.title}
                         />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
                       </div>
-                      <h3 className="text-[11px] font-bold truncate">{drama.title}</h3>
-                      <p className="text-[9px] text-slate-500 mt-0.5">
+                      <h3 className="text-[12px] font-bold truncate text-neutral-100">{drama.title}</h3>
+                      <p className="text-[10px] text-neutral-500 mt-1 font-medium">
                         {drama.episodeCount} Eps
                       </p>
                     </Link>
@@ -103,24 +104,25 @@ export default function HomePage() {
             )}
 
             {popularDramas.length > 0 && (
-              <section className="mt-8 px-4">
-                <h2 className="text-lg font-black mb-4">Populer</h2>
-                <div className="flex space-x-4 overflow-x-auto pb-4 scrollbar-hide">
+              <section className="mt-8 px-4 animate-slide-up" style={{ animationDelay: '100ms' }}>
+                <h2 className="text-xl font-black mb-4 tracking-tight">Populer</h2>
+                <div className="flex space-x-4 overflow-x-auto pb-6 scrollbar-hide snap-x">
                   {popularDramas.map((drama) => (
-                    <Link 
+                    <Link
                       key={drama.id}
                       href={`/dramas/${drama.id}`}
-                      className="flex-shrink-0 w-32"
+                      className="shrink-0 w-32"
                     >
-                      <div className="aspect-[2/3] rounded-xl overflow-hidden mb-2">
-                        <img 
-                          src={drama.coverUrl} 
-                          className="w-full h-full object-cover" 
+                      <div className="aspect-2/3 rounded-xl overflow-hidden mb-3 relative group ring-1 ring-white/10 shadow-lg">
+                        <img
+                          src={drama.coverUrl}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                           alt={drama.title}
                         />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
                       </div>
-                      <h3 className="text-[11px] font-bold truncate">{drama.title}</h3>
-                      <p className="text-[9px] text-slate-500 mt-0.5">
+                      <h3 className="text-[12px] font-bold truncate text-neutral-100">{drama.title}</h3>
+                      <p className="text-[10px] text-neutral-500 mt-1 font-medium">
                         {drama.episodeCount} Eps
                       </p>
                     </Link>

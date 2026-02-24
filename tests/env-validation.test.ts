@@ -37,6 +37,7 @@ describe('Environment Validation', () => {
                 ...process.env,
                 NODE_ENV: 'test',
                 NEXT_PUBLIC_SUPABASE_URL: 'https://test-project.supabase.co',
+                NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key',
                 SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
                 UPSTASH_REDIS_REST_URL: 'https://test-redis.upstash.io',
                 UPSTASH_REDIS_REST_TOKEN: 'test-redis-token',
@@ -74,6 +75,7 @@ describe('Environment Validation', () => {
                 ...process.env,
                 NODE_ENV: 'test',
                 NEXT_PUBLIC_SUPABASE_URL: 'https://test-project.supabase.co',
+                NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key',
                 // Missing SUPABASE_SERVICE_ROLE_KEY
                 UPSTASH_REDIS_REST_URL: 'https://test-redis.upstash.io',
                 UPSTASH_REDIS_REST_TOKEN: 'test-redis-token',
@@ -92,6 +94,7 @@ describe('Environment Validation', () => {
                 ...process.env,
                 NODE_ENV: 'test',
                 NEXT_PUBLIC_SUPABASE_URL: 'https://test-project.supabase.co',
+                NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key',
                 SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
                 // Missing UPSTASH_REDIS_REST_URL
                 UPSTASH_REDIS_REST_TOKEN: 'test-redis-token',
@@ -102,7 +105,7 @@ describe('Environment Validation', () => {
             const result = preflightEnvCheck();
 
             expect(result.success).toBe(false);
-            expect(result.missingVars).toContain('UPSTASH_REDIS_REST_URL');
+            expect(result.missingVars).toContain('KV_REST_API_URL or UPSTASH_REDIS_REST_URL');
         });
 
         it('should detect missing UPSTASH_REDIS_REST_TOKEN', async () => {
@@ -110,6 +113,7 @@ describe('Environment Validation', () => {
                 ...process.env,
                 NODE_ENV: 'test',
                 NEXT_PUBLIC_SUPABASE_URL: 'https://test-project.supabase.co',
+                NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key',
                 SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
                 UPSTASH_REDIS_REST_URL: 'https://test-redis.upstash.io',
                 // Missing UPSTASH_REDIS_REST_TOKEN
@@ -120,7 +124,7 @@ describe('Environment Validation', () => {
             const result = preflightEnvCheck();
 
             expect(result.success).toBe(false);
-            expect(result.missingVars).toContain('UPSTASH_REDIS_REST_TOKEN');
+            expect(result.missingVars).toContain('KV_REST_API_TOKEN or UPSTASH_REDIS_REST_TOKEN');
         });
 
         it('should detect missing CAPTAIN_API_TOKEN', async () => {
@@ -128,6 +132,7 @@ describe('Environment Validation', () => {
                 ...process.env,
                 NODE_ENV: 'test',
                 NEXT_PUBLIC_SUPABASE_URL: 'https://test-project.supabase.co',
+                NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key',
                 SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
                 UPSTASH_REDIS_REST_URL: 'https://test-redis.upstash.io',
                 UPSTASH_REDIS_REST_TOKEN: 'test-redis-token',
@@ -147,6 +152,7 @@ describe('Environment Validation', () => {
                 NODE_ENV: 'test',
                 // Missing multiple required vars
                 NEXT_PUBLIC_SUPABASE_URL: 'https://test-project.supabase.co',
+                NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key',
                 // Missing: SUPABASE_SERVICE_ROLE_KEY, UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN, CAPTAIN_API_TOKEN
             };
 
@@ -180,6 +186,7 @@ describe('Environment Validation', () => {
                 ...process.env,
                 NODE_ENV: 'test',
                 NEXT_PUBLIC_SUPABASE_URL: 'https://test-project.supabase.co',
+                NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key',
                 SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
                 UPSTASH_REDIS_REST_URL: 'invalid-url', // Invalid URL
                 UPSTASH_REDIS_REST_TOKEN: 'test-redis-token',
@@ -198,6 +205,7 @@ describe('Environment Validation', () => {
                 ...process.env,
                 NODE_ENV: 'test',
                 NEXT_PUBLIC_SUPABASE_URL: 'https://test-project.supabase.co',
+                NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key',
                 SUPABASE_SERVICE_ROLE_KEY: '', // Empty string
                 UPSTASH_REDIS_REST_URL: 'https://test-redis.upstash.io',
                 UPSTASH_REDIS_REST_TOKEN: 'test-redis-token',
@@ -218,6 +226,7 @@ describe('Environment Validation', () => {
                 ...process.env,
                 NODE_ENV: 'test',
                 NEXT_PUBLIC_SUPABASE_URL: 'https://test-project.supabase.co',
+                NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key',
                 SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
                 UPSTASH_REDIS_REST_URL: 'https://test-redis.upstash.io',
                 UPSTASH_REDIS_REST_TOKEN: 'test-redis-token',

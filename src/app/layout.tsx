@@ -1,5 +1,8 @@
-import './globals.css'
-import type { Metadata } from 'next'
+import { Inter } from 'next/font/google';
+import './globals.css';
+import type { Metadata } from 'next';
+
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'dracinhub - Drama Streaming Platform',
@@ -13,7 +16,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="id">
-      <body className="bg-slate-950 text-slate-100">
+      <body className={`${inter.className} bg-neutral-950 text-slate-100 antialiased`}>
         {children}
       </body>
     </html>

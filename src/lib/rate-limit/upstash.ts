@@ -1,6 +1,6 @@
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
-import { getServerEnv, getRateLimitConfig } from '../config/env';
+import { getServerEnv, getUpstashCredentials, getRateLimitConfig } from '../config/env';
 
 // Rate limit configuration from centralized env
 function getRateLimits() {
@@ -14,13 +14,19 @@ function getRateLimits() {
 // Redis client for rate limiting
 let redisClient: Redis | null = null;
 
+/**
+ * Get Redis client for rate limiting.
+ * Uses Vercel auto-generated Upstash Redis variables:
+ * - KV_REST_API_URL (or legacy UPSTASH_REDIS_REST_URL)
+ * - KV_REST_API_TOKEN (or legacy UPSTASH_REDIS_REST_TOKEN)
+ */
 function getRedisClient(): Redis {
   if (!redisClient) {
     // This will throw with clear error messages if env vars are missing
-    const env = getServerEnv();
+    const credentials = getUpstashCredentials();
     redisClient = new Redis({
-      url: env.UPSTASH_REDIS_REST_URL,
-      token: env.UPSTASH_REDIS_REST_TOKEN,
+      url: credentials.url,
+      token: credentials.token,
     });
   }
 
@@ -124,4 +130,38 @@ export function getRateLimiter() {
       };
     },
   };
+}
+
+/**
+ * Create a custom rate limiter with specific configuration.
+ * Uses Vercel auto-generated Upstash Redis variables.
+ *
+ * @param requests - Number of requests allowed
+ * @param window - Time window (e.g., '1 m', '1 h')
+ * @param prefix - Key prefix for this limiter
+ */
+export function createCustomLimiter(
+  requests: number,
+  window: string,
+  prefix: string
+): Ratelimit {
+  return new Ratelimit({
+    redis: getRedisClient(),
+    limiter: Ratelimit.slidingWindow(requests, window as `${number} ${'ms' | 's' | 'm' | 'h' | 'd'}`),
+    analytics: true,
+    prefix: `ratelimit:${prefix}`,
+  });
+}
+
+/**
+ * Check if rate limiting is properly configured.
+ * Useful for health checks and graceful degradation.
+ */
+export function isRateLimitConfigured(): boolean {
+  try {
+    const credentials = getUpstashCredentials();
+    return !!(credentials.url && credentials.token);
+  } catch {
+    return false;
+  }
 }
