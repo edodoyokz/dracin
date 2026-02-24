@@ -18,8 +18,10 @@ export interface ResolvedEndpoint {
 
 interface Provider {
   slug: string;
+  provider: string;
   baseUrl: string;
   status: string;
+  vip: string;
   endpoints: ProviderEndpoint[];
   capabilities?: ProviderCapabilities;
 }
