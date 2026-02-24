@@ -1,3 +1,5 @@
+import type { ProviderCapabilities } from '@/lib/types';
+
 export interface ProviderEndpoint {
   method?: string;
   path: string;
@@ -19,6 +21,7 @@ interface Provider {
   baseUrl: string;
   status: string;
   endpoints: ProviderEndpoint[];
+  capabilities?: ProviderCapabilities;
 }
 
 import catalogData from './catalog.json';
@@ -42,6 +45,38 @@ class ProviderCatalog {
 
   getProvider(slug: string): Provider | undefined {
     return this.providers.get(slug);
+  }
+
+  getCapabilities(slug: string): ProviderCapabilities | undefined {
+    const provider = this.getProvider(slug);
+    if (!provider) {
+      return undefined;
+    }
+
+    // Return explicit capabilities if they exist
+    if (provider.capabilities) {
+      return provider.capabilities;
+    }
+
+    // Derive capabilities from endpoints
+    const endpoints = provider.endpoints || [];
+    const paths = endpoints.map(e => e.path);
+    const hasSearch = paths.some(p => /search/i.test(p));
+    const hasHome = paths.some(p => /\/(home|foryou|feed|popular)/i.test(p));
+    const hasEpisodes = paths.some(p => /episodes?/i.test(p));
+    const hasPlay = paths.some(p => /\/(play|stream|video)/i.test(p));
+    const hasSubtitle = paths.some(p => /subtitle/i.test(p));
+    const hasUnlock = paths.some(p => /unlock/i.test(p));
+
+    return {
+      supportsHome: hasHome,
+      supportsSearch: hasSearch,
+      supportsEpisodeList: hasEpisodes,
+      supportsPlayback: hasPlay,
+      supportsSubtitle: hasSubtitle,
+      supportsUnlock: hasUnlock,
+      playbackType: hasPlay ? 'play' : 'unknown',
+    };
   }
 
   resolveEndpoint(
