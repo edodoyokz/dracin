@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { X, Heart, Share2, Bookmark } from 'lucide-react';
-import { getPlaybackUrl, saveWatchProgress } from '../../lib/api-client';
+import { getPlaybackUrl, saveWatchProgress } from '@/lib/api-client';
 
 export default function PlayPage() {
   const params = useParams();
@@ -11,7 +11,7 @@ export default function PlayPage() {
   const provider = params.provider as string;
   const dramaId = params.drama as string;
   const episodeNo = params.episode as string;
-  
+
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export default function PlayPage() {
           episodeNo,
           'guest'
         );
-        
+
         if (playback) {
           setStreamUrl(playback.streamUrl);
         } else {

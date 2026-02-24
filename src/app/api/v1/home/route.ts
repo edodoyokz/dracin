@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getHomeDramas } from '../../../lib/db/dramas';
-import { logger, generateRequestId } from '../../../lib/observability/logger';
-import type { ApiResponse, DramaCard } from '../../../lib/types';
+import { getHomeDramas } from '@/lib/db/dramas';
+import { logger, generateRequestId } from '@/lib/observability/logger';
+import type { ApiResponse, DramaCard } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 

@@ -4,46 +4,52 @@ import { getAdapter } from '../lib/providers/adapters';
 import { createCaptainClient } from '../lib/http/captain-client';
 import { getRateLimiter } from '../lib/rate-limit/upstash';
 import { logger } from '../lib/observability/logger';
+import { getServerEnv, preflightEnvCheck } from '../lib/config/env';
 import type { DramaCard } from '../lib/types';
 
-const captainToken = process.env.CAPTAIN_API_TOKEN || '';
-const captainClient = createCaptainClient(captainToken);
+// Initialize captain client lazily to allow env validation first
+let captainClientInstance: ReturnType<typeof createCaptainClient> | null = null;
+
+function getCaptainClient() {
+  if (!captainClientInstance) {
+    const env = getServerEnv();
+    captainClientInstance = createCaptainClient(env.CAPTAIN_API_TOKEN);
+  }
+  return captainClientInstance;
+}
 
 export async function syncHomeDramas(): Promise<void> {
   const supabase = getSupabaseClient();
   const limiter = getRateLimiter();
-  const activeProviders = providerCatalog.getActiveProviders();
 
-  logger.info('sync_dramas_started', { providerCount: activeProviders.length });
+  try {
+    // Get active providers (golden 5 for initial sync)
+    const activeProviders = providerCatalog.getActiveProviders()
+      .filter(p => p.status === 'active')
+      .slice(0, 5);
 
-  for (const provider of activeProviders) {
-    try {
-      const caps = providerCatalog.getCapabilities(provider.slug);
-      if (!caps?.supportsHome) {
-        logger.info('sync_dramas_skipped_no_home', { provider: provider.slug });
-        continue;
-      }
-
+    for (const provider of activeProviders) {
       const limitCheck = await limiter.checkBoth(provider.slug);
       if (!limitCheck.global.success || !limitCheck.provider.success) {
-        logger.warn('sync_dramas_rate_limited', { provider: provider.slug });
+        logger.warn('sync_home_rate_limited', { provider: provider.slug });
         continue;
       }
 
-      const resolved = providerCatalog.resolveEndpoint(provider.slug, 'home');
+      const resolved = providerCatalog.resolveEndpoint(provider.slug, 'home', {});
+
       if (!resolved) {
-        logger.warn('sync_dramas_no_endpoint', { provider: provider.slug });
+        logger.warn('sync_home_no_endpoint', { provider: provider.slug });
         continue;
       }
 
-      const response = await captainClient.get(resolved.url, {
+      const response = await getCaptainClient().get(resolved.url, {
         provider: provider.slug,
-        requestId: `sync-${Date.now()}`,
+        requestId: `sync-home-${Date.now()}`,
       });
 
       const adapter = getAdapter(provider.slug);
       if (!adapter) {
-        logger.warn('sync_dramas_no_adapter', { provider: provider.slug });
+        logger.warn('sync_home_no_adapter', { provider: provider.slug });
         continue;
       }
 
@@ -58,17 +64,15 @@ export async function syncHomeDramas(): Promise<void> {
             title: drama.title,
             cover_url: drama.coverUrl,
             episode_count: drama.episodeCount,
-            tags: drama.tags,
             is_premium: drama.isPremium,
-            popularity_score: drama.rating,
-            last_provider_update: new Date().toISOString(),
+            popularity_score: drama.rating || 0,
             last_synced_at: new Date().toISOString(),
           }, {
             onConflict: 'provider_slug,provider_drama_id',
           });
 
         if (error) {
-          logger.error('sync_drama_failed', {
+          logger.error('sync_home_drama_failed', {
             provider: provider.slug,
             dramaId: drama.providerDramaId,
             error: error.message,
@@ -76,21 +80,30 @@ export async function syncHomeDramas(): Promise<void> {
         }
       }
 
-      logger.info('sync_dramas_provider_completed', {
+      logger.info('sync_home_provider_completed', {
         provider: provider.slug,
         count: dramas.length,
       });
-    } catch (error) {
-      logger.error('sync_dramas_provider_failed', {
-        provider: provider.slug,
-        error: error instanceof Error ? error.message : 'Unknown',
-      });
     }
-  }
 
-  logger.info('sync_dramas_completed');
+    logger.info('sync_home_completed', {
+      providerCount: activeProviders.length,
+    });
+  } catch (error) {
+    logger.error('sync_home_failed', {
+      error: error instanceof Error ? error.message : 'Unknown',
+    });
+  }
 }
 
 if (require.main === module) {
+  // Preflight env validation - fail fast with clear errors
+  const preflight = preflightEnvCheck();
+  if (!preflight.success) {
+    console.error('Environment validation failed:');
+    preflight.errors.forEach(err => console.error(`  - ${err}`));
+    process.exit(1);
+  }
+
   syncHomeDramas().catch(console.error);
 }

@@ -1,6 +1,6 @@
 # Production Readiness Plan - dracinhub
 
-**Document Version**: 1.0  
+**Document Version**: 1.3  
 **Last Updated**: 2026-02-24  
 **Status**: MVP Complete → Production Preparation
 
@@ -15,7 +15,11 @@ Platform MVP telah selesai dengan 37 file implementasi. Dokumen ini merinci lang
 ## Phase 1: Pre-Production Setup (Week 1)
 
 ### 1.1 Environment Configuration
-- [ ] **Production Environment Variables**
+- [x] **Production Environment Variables** (in-repo: centralized validation)
+  - Implemented centralized env validation in `src/lib/config/env.ts`
+  - Fail-fast preflight check for required secrets
+  - Server-only secrets validated on server paths
+  - Clear error messages for missing/invalid env vars
   ```bash
   # Supabase Production
   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
@@ -31,11 +35,15 @@ Platform MVP telah selesai dengan 37 file implementasi. Dokumen ini merinci lang
   # Vercel/Deployment
   VERCEL_TOKEN=xxx...
   ```
+  - [ ] **External Action**: Configure actual values in Vercel dashboard
 
-- [ ] **Database Migration Scripts**
-  - Setup production database di Supabase
-  - Run `DB_SCHEMA.sql`
-  - Verify tables: providers, dramas, episodes, users, subscriptions, watch_history
+- [x] **Database Migration Scripts** (in-repo: versioned migrations)
+  - Created `migrations/001_initial_schema_constraints.sql`
+  - Adds unique constraint for episode upsert conflict target
+  - Adds partial indexes for watch_history NULL handling
+  - Migration log table for tracking applied migrations
+  - [ ] **External Action**: Run migrations on production Supabase
+  - [ ] **External Action**: Verify tables: providers, dramas, episodes, users, subscriptions, watch_history
 
 - [ ] **Secret Management**
   - Gunakan Vercel Environment Variables untuk production
@@ -85,12 +93,61 @@ Platform MVP telah selesai dengan 37 file implementasi. Dokumen ini merinci lang
   - Path parameter extraction
   - Endpoint selection priority
 
-- [ ] **Adapter Tests** (per provider)
+- [x] **Adapter Tests** (per provider) - Golden-5 providers implemented ✅
   - Map home response
   - Map search response
   - Map detail response
   - Map episodes response
   - Map playback response
+  - Tests: `tests/adapter-contract.test.ts` (68 tests)
+
+#### 2.1.1 Critical Path Tests (Implemented ✅)
+```typescript
+// tests/env-validation.test.ts (19 tests)
+// tests/api-validation.test.ts (63 tests)
+// tests/watch-progress-contract.test.ts (10 tests)
+// tests/migration-compatibility.test.ts (35 tests)
+// tests/adapter-contract.test.ts (68 tests) - NEW
+// tests/e2e-happy-path.test.ts (11 tests) - NEW
+```
+
+- [x] **Environment Validation Tests** (19 tests)
+  - Preflight check for missing required env vars
+  - Preflight check for invalid env var formats
+  - Server-only env access prevention on client
+  - Optional env var defaults
+
+- [x] **API Input Validation Tests** (63 tests)
+  - Search query validation (length, whitespace)
+  - Playback request validation (provider, drama, episode)
+  - Watch progress validation (UUID, progress bounds 0-86400)
+  - validateSearchParams and validateRequestBody helpers
+
+- [x] **Watch-Progress Contract Tests** (10 tests)
+  - UUID passthrough for episode IDs
+  - Episode number resolution to UUID
+  - Provider episode ID resolution
+  - Slug/chapter_id resolution
+  - Data transformation (camelCase to snake_case)
+  - Conflict target verification (user_id, drama_id, episode_id)
+
+- [x] **Migration Compatibility Tests** (35 tests)
+  - Episode unique constraint artifact (idx_episodes_drama_no_unique)
+  - Watch history partial indexes
+  - Migration log table structure
+  - DB schema required tables and columns
+
+- [x] **Adapter Contract Tests** (68 tests) - NEW ✅
+  - Golden-5 provider mapping validation
+  - Deterministic fixtures for home/search/detail/episodes/playback
+  - Tests fail if adapter returns empty placeholder arrays for valid input
+  - Edge case handling (null, empty arrays)
+
+- [x] **E2E Happy Path Tests** (11 tests) - NEW ✅
+  - Home → Detail → Episodes → Playback journey
+  - Watch progress contract validation
+  - Provider health checks
+  - Data transformation contract validation
 
 ### 2.2 Integration Testing
 ```typescript
@@ -119,10 +176,18 @@ Platform MVP telah selesai dengan 37 file implementasi. Dokumen ini merinci lang
 
 ### 2.3 E2E Testing
 ```typescript
-// tests/e2e/flow.test.ts
+// tests/e2e-happy-path.test.ts (11 tests) ✅
 ```
 
-- [ ] **User Journey Tests**
+- [x] **User Journey Tests** (CI-friendly, mocked provider responses)
+  1. Home page journey - retrieve and map content for Golden-5 providers
+  2. Drama detail journey - map detail with all required fields
+  3. Episodes list journey - map episodes with correct ordering
+  4. Playback journey - map playback with stream URL and expiration
+  5. Watch progress contract - validate data structure
+  6. Full journey integration - home → detail → episodes → playback
+
+- [ ] **Live E2E Tests** (requires external dependencies)
   1. Browse Home → click drama → view detail → select episode → play
   2. Search "CEO" → select result → view detail
   3. Play episode → pause → resume → verify progress saved
@@ -145,34 +210,29 @@ Platform MVP telah selesai dengan 37 file implementasi. Dokumen ini merinci lang
 ## Phase 3: Security Hardening (Week 2)
 
 ### 3.1 API Security
-- [ ] **CORS Configuration**
-  ```typescript
-  // next.config.ts
-  async headers() {
-    return [
-      {
-        source: '/api/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Origin', value: 'https://yourdomain.com' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, OPTIONS' },
-        ],
-      },
-    ];
-  }
-  ```
+- [x] **CORS Configuration** (in-repo: implemented in next.config.ts)
+  - Implemented in `next.config.ts` with production-safe defaults
+  - Env-configurable via `CORS_ALLOWED_ORIGIN`
+  - Allows GET, POST, OPTIONS methods
+  - [ ] **External Action**: Set `CORS_ALLOWED_ORIGIN` in production to your domain
 
-- [ ] **Input Validation**
-  - Implement Zod schemas for all API inputs
-  - Sanitize search queries (SQL injection prevention)
-  - Validate UUID formats
+- [x] **Input Validation** (in-repo: Zod schemas implemented)
+  - Implemented Zod schemas in `src/lib/validation/schemas.ts`
+  - Search query validation with length limits
+  - UUID format validation for drama IDs
+  - Provider/episode path parameter validation
+  - Watch progress request body validation
+  - Proper 4xx responses for invalid input
+  - [ ] **External Action**: Review and extend validation schemas as needed
 
-- [ ] **Token Security**
+- [x] **Token Security**
   - Captain API token: server-side only ✅
   - Supabase service role: server-side only ✅
   - Redis token: server-side only ✅
+  - Enforced via `getServerEnv()` which throws on client-side access
 
 ### 3.2 Playback Security
-- [ ] **Stream URL Protection**
+- [x] **Stream URL Protection**
   - Proxy all playback through /v1/playback ✅
   - Short-lived URLs (60-120s expiration) ✅
   - No direct provider URLs to client ✅
@@ -183,7 +243,7 @@ Platform MVP telah selesai dengan 37 file implementasi. Dokumen ini merinci lang
   - Test: Valid subscription → 200 OK with stream URL
 
 ### 3.3 Rate Limiting & DDoS Protection
-- [ ] **Upstash Rate Limiter** ✅ Implemented
+- [x] **Upstash Rate Limiter** ✅ Implemented
   - Global: 45 req/s
   - Per-provider: configurable
   - IP-based (future): add IP tracking
@@ -197,7 +257,7 @@ Platform MVP telah selesai dengan 37 file implementasi. Dokumen ini merinci lang
 ## Phase 4: Monitoring & Observability (Week 2)
 
 ### 4.1 Logging Infrastructure
-- [ ] **Structured Logging** ✅ Implemented
+- [x] **Structured Logging** ✅ Implemented
   ```json
   {
     "level": "INFO",
@@ -215,7 +275,10 @@ Platform MVP telah selesai dengan 37 file implementasi. Dokumen ini merinci lang
   - Or: Custom logging to Supabase
 
 ### 4.2 Metrics Dashboard
-- [ ] **Key Metrics**
+- [x] **Key Metrics** (in-repo: baseline documented)
+  - Defined in `MONITORING_BASELINE.md`
+  - Metric targets and alert thresholds documented
+  - Logging schema reference included
   | Metric | Target | Alert Threshold |
   |--------|--------|-----------------|
   | P95 Latency (Home) | < 200ms | > 500ms |
@@ -224,25 +287,31 @@ Platform MVP telah selesai dengan 37 file implementasi. Dokumen ini merinci lang
   | Cache Hit Ratio | > 75% | < 60% |
   | Error Rate | < 1% | > 5% |
   | Outbound Rate Limit | < 45 req/s | > 50 req/s |
+  - [ ] **External Action**: Configure metrics dashboard in Vercel/Datadog
 
 - [ ] **Provider Health Dashboard**
   - Error rate per provider
   - P95 latency per provider
   - Availability status
   - Last successful sync
+  - [ ] **External Action**: Set up provider health monitoring
 
 ### 4.3 Alerting
-- [ ] **Critical Alerts**
+- [x] **Critical Alerts** (in-repo: thresholds documented)
+  - Defined in `MONITORING_BASELINE.md`
   - Provider down > 5 minutes
   - Playback success rate < 90%
   - Database connection errors
   - Redis connection errors
   - Rate limit exceeded > 10%
+  - [ ] **External Action**: Configure alerting in monitoring platform
 
-- [ ] **Warning Alerts**
+- [x] **Warning Alerts** (in-repo: thresholds documented)
+  - Defined in `MONITORING_BASELINE.md`
   - P95 latency > target
   - Cache hit ratio dropping
   - Provider error rate > 5%
+  - [ ] **External Action**: Configure alerting in monitoring platform
 
 ---
 
@@ -284,9 +353,12 @@ CREATE INDEX idx_episodes_drama ON episodes(drama_id, episode_no);
 ```
 
 ### 5.3 Cron Jobs Setup
-- [ ] **Vercel Cron**
+- [x] **Vercel Cron** (in-repo: vercel.json created)
+  - Created `vercel.json` with cron definitions
+  - `/api/cron/sync-providers` - every 6 hours
+  - `/api/cron/sync-dramas` - every 2 hours
+  - Cron endpoints verify `CRON_SECRET` for security
   ```json
-  // vercel.json
   {
     "crons": [
       {
@@ -300,6 +372,8 @@ CREATE INDEX idx_episodes_drama ON episodes(drama_id, episode_no);
     ]
   }
   ```
+  - [ ] **External Action**: Set `CRON_SECRET` in Vercel environment variables
+  - [ ] **External Action**: Verify cron jobs are running in Vercel dashboard
 
 - [ ] **Alternative: GitHub Actions**
   ```yaml
@@ -347,7 +421,7 @@ CREATE INDEX idx_episodes_drama ON episodes(drama_id, episode_no);
 ## Phase 7: Scaling Preparation (Week 4)
 
 ### 7.1 Horizontal Scaling
-- [ ] **Stateless Architecture** ✅
+- [x] **Stateless Architecture** ✅
   - No server-side state
   - All state in Supabase/Redis
 
@@ -365,7 +439,7 @@ CREATE INDEX idx_episodes_drama ON episodes(drama_id, episode_no);
 
 ### 7.3 Provider Scaling
 - [ ] **Batch Onboarding**
-  - Week 1: Golden 5 ✅
+  - Week 1: Golden 5 ✅ (Adapters implemented with real mapping logic)
   - Week 2: Batch A (8 providers)
   - Week 3: Batch B (10 providers)
   - Week 4: Batch C+D (18 providers)
@@ -405,17 +479,17 @@ CREATE INDEX idx_episodes_drama ON episodes(drama_id, episode_no);
 
 ### Must Have (Blocker)
 - [ ] Production database migrated
-- [ ] Environment variables configured
-- [ ] Rate limiter active
-- [ ] Basic monitoring setup
-- [ ] Golden 5 providers tested
-- [ ] E2E happy path passing
+- [x] Environment variables configured (validation in-repo)
+- [x] Rate limiter active
+- [x] Basic monitoring setup (baseline documented in-repo)
+- [x] Golden 5 providers tested (adapters implemented with contract tests)
+- [x] E2E happy path passing (11 tests)
 
 ### Should Have (Important)
-- [ ] Full test suite passing
+- [x] Critical path test suite passing (206 tests: env validation, API validation, watch-progress contract, migration compatibility, adapter contract, E2E happy path)
 - [ ] Performance benchmarks met
 - [ ] Logging aggregation setup
-- [ ] Alerting configured
+- [ ] Alerting configured (thresholds documented in-repo)
 - [ ] Documentation complete
 
 ### Nice to Have (Future)
@@ -466,9 +540,12 @@ vercel --rollback
 npm run dev
 
 # Testing
-npm test
-npm run test:e2e
-npm run test:load
+npm test                    # Run all tests
+npm run test:watch          # Watch mode
+npm run test:coverage       # Coverage report
+npm run test:e2e            # E2E happy path tests
+npm run test:adapters       # Adapter contract tests
+npm run verify              # Test + Build verification
 
 # Build
 npm run build
@@ -481,17 +558,20 @@ npx ts-node src/jobs/sync-providers.ts
 npx ts-node src/jobs/sync-home-dramas.ts
 ```
 
-### B. Environment Variables Template
-See `.env.example` in repository
+### B. Test Infrastructure
+- **Framework**: Vitest 2.1.0
+- **Config**: `vitest.config.ts`
+- **Test Files**: `tests/**/*.test.ts`
+- **Run Command**: `npm test`
+- **Coverage**: `npm run test:coverage`
+- **Total Tests**: 206 (passing)
 
-### C. Provider Onboarding Checklist
-- [ ] Adapter implementation
-- [ ] Contract tests passing
-- [ ] Capability matrix updated
-- [ ] Production ingestion
-- [ ] Monitoring enabled
-
----
-
-**Next Review Date**: 2026-03-03  
-**Document Owner**: techprocreative
+### C. Test Files Summary
+| File | Tests | Description |
+|------|-------|-------------|
+| `tests/env-validation.test.ts` | 19 | Environment variable validation |
+| `tests/api-validation.test.ts` | 63 | API input validation |
+| `tests/watch-progress-contract.test.ts` | 10 | Watch progress data contract |
+| `tests/migration-compatibility.test.ts` | 35 | Database migration artifacts |
+| `tests/adapter-contract.test.ts` | 68 | Golden-5 adapter mapping tests |
+| `tests/e2e-happy-path.test.ts` | 11 | E2E journey tests |

@@ -1,17 +1,36 @@
 import { NextResponse } from 'next/server';
-import { getEpisodesByDramaId } from '../../../../../lib/db/dramas';
-import { logger, generateRequestId } from '../../../../../lib/observability/logger';
-import type { ApiResponse, EpisodeItem } from '../../../../../lib/types';
+import { getEpisodesByDramaId } from '@/lib/db/dramas';
+import { logger, generateRequestId } from '@/lib/observability/logger';
+import { validatePathParams, dramaDetailPathSchema } from '@/lib/validation/schemas';
+import type { ApiResponse, EpisodeItem } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
+// Handle OPTIONS for CORS preflight
+export async function OPTIONS(): Promise<NextResponse> {
+  return new NextResponse(null, { status: 204 });
+}
+
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const requestId = generateRequestId();
   const startTime = Date.now();
-  const { id } = params;
+
+  // Validate path parameters
+  const validation = await validatePathParams(params, dramaDetailPathSchema);
+
+  if (!validation.success) {
+    const response: ApiResponse<null> = {
+      data: null,
+      meta: { requestId, timestamp: new Date().toISOString() },
+      error: validation.error,
+    };
+    return NextResponse.json(response, { status: 400 });
+  }
+
+  const { id } = validation.data;
 
   try {
     const episodes = await getEpisodesByDramaId(id);

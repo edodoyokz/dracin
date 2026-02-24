@@ -1,9 +1,9 @@
-import type { DramaCard, DramaDetail, EpisodeItem, PlaybackResponse } from '../types';
+import type { DramaCard, DramaDetail, EpisodeItem, PlaybackResponse } from '@/lib/types';
 
 export interface ProviderAdapter {
   readonly name: string;
   readonly slug: string;
-  
+
   mapHome(response: unknown): DramaCard[];
   mapSearch(response: unknown): DramaCard[];
   mapDramaDetail(response: unknown): DramaDetail;

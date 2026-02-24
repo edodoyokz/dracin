@@ -1,42 +1,46 @@
 import { NextResponse } from 'next/server';
-import { getPlaybackUrl } from '../../../lib/services/playback';
-import { checkEntitlement } from '../../../lib/db/subscriptions';
-import { getCacheManager, createPlaybackKey, CACHE_TTL } from '../../../lib/cache/redis';
-import { logger, generateRequestId } from '../../../lib/observability/logger';
-import type { ApiResponse, PlaybackResponse } from '../../../lib/types';
+import { getPlaybackUrl } from '@/lib/services/playback';
+import { checkEntitlement } from '@/lib/db/subscriptions';
+import { getCacheManager, createPlaybackKey, CACHE_TTL } from '@/lib/cache/redis';
+import { logger, generateRequestId } from '@/lib/observability/logger';
+import { validateSearchParams, playbackRequestSchema } from '@/lib/validation/schemas';
+import type { ApiResponse, PlaybackResponse } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
+
+// Handle OPTIONS for CORS preflight
+export async function OPTIONS(): Promise<NextResponse> {
+  return new NextResponse(null, { status: 204 });
+}
 
 export async function GET(request: Request): Promise<NextResponse> {
   const requestId = generateRequestId();
   const startTime = Date.now();
-  
-  const { searchParams } = new URL(request.url);
-  const provider = searchParams.get('provider');
-  const dramaId = searchParams.get('drama');
-  const episodeId = searchParams.get('episode');
-  const userId = searchParams.get('userId') || 'guest';
 
-  if (!provider || !dramaId || !episodeId) {
+  const { searchParams } = new URL(request.url);
+
+  // Validate input parameters
+  const validation = validateSearchParams(searchParams, playbackRequestSchema);
+
+  if (!validation.success) {
     const response: ApiResponse<null> = {
       data: null,
       meta: { requestId, timestamp: new Date().toISOString() },
-      error: {
-        code: 'BAD_REQUEST',
-        message: 'Missing required parameters: provider, drama, episode',
-      },
+      error: validation.error,
     };
     return NextResponse.json(response, { status: 400 });
   }
 
+  const { provider, drama: dramaId, episode: episodeId, userId } = validation.data;
+
   try {
     const cache = getCacheManager();
     const cacheKey = createPlaybackKey(provider, dramaId, episodeId);
-    
+
     const cached = await cache.get<PlaybackResponse>(cacheKey);
     if (cached) {
       logger.info('playback_cache_hit', { requestId, provider, dramaId, episodeId });
-      
+
       const response: ApiResponse<PlaybackResponse> = {
         data: cached,
         meta: {
@@ -96,7 +100,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.json(response);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
+
     logger.error('playback_failed', {
       requestId,
       provider,
@@ -107,8 +111,8 @@ export async function GET(request: Request): Promise<NextResponse> {
     });
 
     const errorCode = errorMessage === 'RATE_LIMITED' ? 'RATE_LIMITED' :
-                      errorMessage === 'PLAYBACK_ENDPOINT_NOT_FOUND' ? 'PROVIDER_UNAVAILABLE' :
-                      'INTERNAL_ERROR';
+      errorMessage === 'PLAYBACK_ENDPOINT_NOT_FOUND' ? 'PROVIDER_UNAVAILABLE' :
+        'INTERNAL_ERROR';
 
     const response: ApiResponse<null> = {
       data: null,
@@ -119,8 +123,8 @@ export async function GET(request: Request): Promise<NextResponse> {
       },
     };
 
-    return NextResponse.json(response, { 
-      status: errorCode === 'RATE_LIMITED' ? 429 : 500 
+    return NextResponse.json(response, {
+      status: errorCode === 'RATE_LIMITED' ? 429 : 500
     });
   }
 }

@@ -5,10 +5,19 @@ import { getAdapter } from '../lib/providers/adapters';
 import { createCaptainClient } from '../lib/http/captain-client';
 import { getRateLimiter } from '../lib/rate-limit/upstash';
 import { logger } from '../lib/observability/logger';
+import { getServerEnv, preflightEnvCheck } from '../lib/config/env';
 import type { EpisodeItem } from '../lib/types';
 
-const captainToken = process.env.CAPTAIN_API_TOKEN || '';
-const captainClient = createCaptainClient(captainToken);
+// Initialize captain client lazily to allow env validation first
+let captainClientInstance: ReturnType<typeof createCaptainClient> | null = null;
+
+function getCaptainClient() {
+  if (!captainClientInstance) {
+    const env = getServerEnv();
+    captainClientInstance = createCaptainClient(env.CAPTAIN_API_TOKEN);
+  }
+  return captainClientInstance;
+}
 
 export async function syncEpisodes(
   providerSlug: string,
@@ -33,7 +42,7 @@ export async function syncEpisodes(
       return;
     }
 
-    const response = await captainClient.get(resolved.url, {
+    const response = await getCaptainClient().get(resolved.url, {
       provider: providerSlug,
       requestId: `sync-ep-${Date.now()}`,
     });
@@ -95,6 +104,14 @@ export async function syncEpisodes(
 }
 
 if (require.main === module) {
+  // Preflight env validation - fail fast with clear errors
+  const preflight = preflightEnvCheck();
+  if (!preflight.success) {
+    console.error('Environment validation failed:');
+    preflight.errors.forEach(err => console.error(`  - ${err}`));
+    process.exit(1);
+  }
+
   const [provider, dramaId] = process.argv.slice(2);
   if (!provider || !dramaId) {
     console.error('Usage: ts-node sync-episodes.ts <provider> <dramaId>');

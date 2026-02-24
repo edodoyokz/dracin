@@ -6,23 +6,43 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "vitest run tests/e2e-happy-path.test.ts",
+    "test:adapters": "vitest run tests/adapter-contract.test.ts",
+    "verify": "npm run test && npm run build",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@supabase/auth-helpers-nextjs": "^0.15.0",
+    "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.97.0",
+    "@tailwindcss/postcss": "^4.2.1",
+    "@upstash/ratelimit": "^2.0.0",
     "@upstash/redis": "^1.28.3",
     "autoprefixer": "^10.4.24",
+    "drizzle-orm": "^0.45.1",
     "lucide-react": "^0.575.0",
-    "next": "14.1.0",
+    "next": "^16.0.0",
     "postcss": "^8.5.6",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "postgres": "^3.4.8",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "tailwindcss": "^4.2.1",
     "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
-    "@types/react": "^18.2.45",
-    "typescript": "^5.3.3"
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "dotenv": "^17.3.1",
+    "drizzle-kit": "^0.31.9",
+    "typescript": "^5.3.3",
+    "vitest": "^2.1.0"
   }
 }

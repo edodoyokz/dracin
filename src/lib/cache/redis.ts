@@ -1,4 +1,5 @@
 import { Redis } from '@upstash/redis';
+import { getServerEnv } from '../config/env';
 
 export class CacheManager {
   private redis: Redis;
@@ -62,16 +63,16 @@ export const CACHE_TTL = {
 
 let cacheInstance: CacheManager | null = null;
 
+/**
+ * Get the CacheManager singleton.
+ * Uses validated environment variables from centralized config.
+ * Server-side only - validates secrets on first access.
+ */
 export function getCacheManager(): CacheManager {
   if (!cacheInstance) {
-    const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-    const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-    if (!redisUrl || !redisToken) {
-      throw new Error('Redis environment variables not configured');
-    }
-
-    cacheInstance = new CacheManager(redisUrl, redisToken);
+    // This will throw with clear error messages if env vars are missing
+    const env = getServerEnv();
+    cacheInstance = new CacheManager(env.UPSTASH_REDIS_REST_URL, env.UPSTASH_REDIS_REST_TOKEN);
   }
 
   return cacheInstance;

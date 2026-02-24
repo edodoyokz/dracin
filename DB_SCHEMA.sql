@@ -1,5 +1,8 @@
 -- dracinhub DB Schema (Supabase Postgres) - migration v1
 -- Note: assumes UUID extension available (gen_random_uuid).
+--
+-- IMPORTANT: After running this base schema, run migrations/001_initial_schema_constraints.sql
+-- to add required unique constraints for production upsert operations.
 
 -- Providers
 create table if not exists providers (
@@ -44,12 +47,14 @@ create index if not exists idx_dramas_popularity on dramas(popularity_score desc
 create index if not exists idx_dramas_updated on dramas(updated_at desc);
 
 -- Episodes
+-- NOTE: episode_no should be NOT NULL with unique constraint for upsert operations.
+-- Run migrations/001_initial_schema_constraints.sql to add this constraint.
 create table if not exists episodes (
   id uuid primary key default gen_random_uuid(),
   drama_id uuid not null references dramas(id) on delete cascade,
   provider_slug text not null references providers(slug),
   provider_episode_id text, -- if available
-  episode_no int,          -- if numeric ordering exists
+  episode_no int,          -- if numeric ordering exists (should be NOT NULL after migration)
   chapter_id text,         -- if provider uses chapterId
   slug text,               -- if provider uses slug
   title text,
@@ -62,6 +67,7 @@ create table if not exists episodes (
 
 create index if not exists idx_episodes_drama on episodes(drama_id);
 create index if not exists idx_episodes_order on episodes(drama_id, episode_no);
+-- NOTE: Run migration to add unique index on (drama_id, episode_no) for upsert conflict target
 
 -- Users
 create table if not exists users (
@@ -87,6 +93,8 @@ create table if not exists subscriptions (
 create index if not exists idx_subscriptions_user on subscriptions(user_id, status);
 
 -- Watch history / progress
+-- NOTE: The unique constraint on (user_id, drama_id, episode_id) has a caveat:
+-- episode_id can be NULL, which may cause issues. Run migration for partial indexes.
 create table if not exists watch_history (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references users(id) on delete cascade,
@@ -101,6 +109,7 @@ create table if not exists watch_history (
 );
 
 create index if not exists idx_watch_user on watch_history(user_id, last_watched_at desc);
+-- NOTE: Run migration to add partial unique indexes for proper NULL episode_id handling
 
 -- Reports / Moderation
 create table if not exists reports (

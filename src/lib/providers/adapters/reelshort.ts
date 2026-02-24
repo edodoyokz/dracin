@@ -1,5 +1,5 @@
 import { BaseProviderAdapter } from './base';
-import type { DramaCard, DramaDetail, EpisodeItem, PlaybackResponse } from '../../types';
+import type { DramaCard, DramaDetail, EpisodeItem, PlaybackResponse } from '@/lib/types';
 
 interface ReelShortBook {
   _id: string;
@@ -25,10 +25,12 @@ export class ReelShortAdapter extends BaseProviderAdapter {
   readonly slug = 'reelshort';
 
   mapHome(response: unknown): DramaCard[] {
+    if (!response || !Array.isArray(response)) {
+      return [];
+    }
     const items = response as ReelShortBook[];
     return items.map(item => ({
       id: `${this.slug}:${item._id}`,
-      providerSlug: this.slug,
       providerDramaId: item._id,
       title: item.title,
       coverUrl: item.cover,
@@ -48,7 +50,6 @@ export class ReelShortAdapter extends BaseProviderAdapter {
     const book = response as ReelShortBook;
     return {
       id: `${this.slug}:${book._id}`,
-      providerSlug: this.slug,
       providerDramaId: book._id,
       title: book.title,
       coverUrl: book.cover,
@@ -66,6 +67,9 @@ export class ReelShortAdapter extends BaseProviderAdapter {
   }
 
   mapEpisodes(response: unknown): EpisodeItem[] {
+    if (!response || !Array.isArray(response)) {
+      return [];
+    }
     const chapters = response as ReelShortChapter[];
     return chapters.map(ch => ({
       episodeId: `${this.slug}:${ch.chapterId}`,
@@ -80,7 +84,7 @@ export class ReelShortAdapter extends BaseProviderAdapter {
   mapPlayback(response: unknown): PlaybackResponse {
     const video = response as ReelShortVideo;
     return {
-      streamUrl: video.videoUrl,
+      streamUrl: video?.videoUrl || '',
       expiresAt: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
     };
   }

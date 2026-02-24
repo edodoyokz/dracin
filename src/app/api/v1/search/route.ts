@@ -1,40 +1,46 @@
 import { NextResponse } from 'next/server';
-import { searchAcrossProviders } from '../../../lib/services/search';
-import { getCacheManager, createSearchKey, CACHE_TTL } from '../../../lib/cache/redis';
-import { providerCatalog } from '../../../lib/providers/catalog';
-import { logger, generateRequestId } from '../../../lib/observability/logger';
-import type { ApiResponse, DramaCard } from '../../../lib/types';
+import { searchAcrossProviders } from '@/lib/services/search';
+import { getCacheManager, createSearchKey, CACHE_TTL } from '@/lib/cache/redis';
+import { providerCatalog } from '@/lib/providers/catalog';
+import { logger, generateRequestId } from '@/lib/observability/logger';
+import { validateSearchParams, searchRequestSchema } from '@/lib/validation/schemas';
+import type { ApiResponse, DramaCard } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
+
+// Handle OPTIONS for CORS preflight
+export async function OPTIONS(): Promise<NextResponse> {
+  return new NextResponse(null, { status: 204 });
+}
 
 export async function GET(request: Request): Promise<NextResponse> {
   const requestId = generateRequestId();
   const startTime = Date.now();
-  
-  const { searchParams } = new URL(request.url);
-  const query = searchParams.get('q');
-  const page = parseInt(searchParams.get('page') || '1', 10);
 
-  if (!query) {
+  const { searchParams } = new URL(request.url);
+
+  // Validate input parameters
+  const validation = validateSearchParams(searchParams, searchRequestSchema);
+
+  if (!validation.success) {
     const response: ApiResponse<null> = {
       data: null,
       meta: { requestId, timestamp: new Date().toISOString() },
-      error: {
-        code: 'BAD_REQUEST',
-        message: 'Query parameter "q" is required',
-      },
+      error: validation.error,
     };
     return NextResponse.json(response, { status: 400 });
   }
 
+  const { q: query, page } = validation.data;
+
   try {
     const cache = getCacheManager();
     const cacheKey = createSearchKey(query, page);
-    
+
     const cached = await cache.get<DramaCard[]>(cacheKey);
     if (cached) {
       logger.info('search_cache_hit', { requestId, query, page });
-      
+
       const response: ApiResponse<DramaCard[]> = {
         data: cached,
         meta: {

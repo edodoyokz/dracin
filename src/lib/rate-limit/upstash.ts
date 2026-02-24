@@ -1,102 +1,127 @@
+import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
+import { getServerEnv, getRateLimitConfig } from '../config/env';
+
+// Rate limit configuration from centralized env
+function getRateLimits() {
+  const config = getRateLimitConfig();
+  return {
+    globalRpm: config.globalRpm,
+    providerRpm: config.providerRpm,
+  };
+}
+
+// Redis client for rate limiting
+let redisClient: Redis | null = null;
+
+function getRedisClient(): Redis {
+  if (!redisClient) {
+    // This will throw with clear error messages if env vars are missing
+    const env = getServerEnv();
+    redisClient = new Redis({
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN,
+    });
+  }
+
+  return redisClient;
+}
+
+// Global rate limiter (requests per minute from config)
+let globalLimiter: Ratelimit | null = null;
+
+function getGlobalLimiter(): Ratelimit {
+  if (!globalLimiter) {
+    const { globalRpm } = getRateLimits();
+    globalLimiter = new Ratelimit({
+      redis: getRedisClient(),
+      limiter: Ratelimit.slidingWindow(globalRpm, '1 m'),
+      analytics: true,
+      prefix: 'ratelimit:global',
+    });
+  }
+  return globalLimiter;
+}
+
+// Per-provider rate limiter (requests per minute from config)
+let providerLimiter: Ratelimit | null = null;
+
+function getProviderLimiter(): Ratelimit {
+  if (!providerLimiter) {
+    const { providerRpm } = getRateLimits();
+    providerLimiter = new Ratelimit({
+      redis: getRedisClient(),
+      limiter: Ratelimit.slidingWindow(providerRpm, '1 m'),
+      analytics: true,
+      prefix: 'ratelimit:provider',
+    });
+  }
+  return providerLimiter;
+}
 
 export interface RateLimitResult {
   success: boolean;
   limit: number;
   remaining: number;
-  reset: number;
-  action: 'allow' | 'deny';
+  reset: Date;
 }
 
-export class RateLimiter {
-  private redis: Redis;
-  private globalLimit: number;
-  private windowSeconds: number;
-  private providerLimits: Map<string, number> = new Map();
+export interface CombinedRateLimitResult {
+  global: RateLimitResult;
+  provider: RateLimitResult;
+}
 
-  constructor(
-    redisUrl: string,
-    redisToken: string,
-    globalLimit: number = 45,
-    windowSeconds: number = 1
-  ) {
-    this.redis = new Redis({
-      url: redisUrl,
-      token: redisToken,
-    });
-    this.globalLimit = globalLimit;
-    this.windowSeconds = windowSeconds;
-  }
+/**
+ * Check both global and per-provider rate limits
+ */
+export async function checkBothLimits(
+  providerSlug: string,
+  identifier: string = 'global'
+): Promise<CombinedRateLimitResult> {
+  const [globalResult, providerResult] = await Promise.all([
+    getGlobalLimiter().limit(identifier),
+    getProviderLimiter().limit(`${providerSlug}:${identifier}`),
+  ]);
 
-  setProviderLimit(provider: string, limit: number): void {
-    this.providerLimits.set(provider, limit);
-  }
+  return {
+    global: {
+      success: globalResult.success,
+      limit: globalResult.limit,
+      remaining: globalResult.remaining,
+      reset: new Date(globalResult.reset),
+    },
+    provider: {
+      success: providerResult.success,
+      limit: providerResult.limit,
+      remaining: providerResult.remaining,
+      reset: new Date(providerResult.reset),
+    },
+  };
+}
 
-  async checkGlobal(): Promise<RateLimitResult> {
-    return this.checkLimit('global:outbound', this.globalLimit);
-  }
-
-  async checkProvider(provider: string): Promise<RateLimitResult> {
-    const providerLimit = this.providerLimits.get(provider);
-    if (!providerLimit) {
-      return { success: true, limit: Infinity, remaining: Infinity, reset: 0, action: 'allow' };
-    }
-    return this.checkLimit(`provider:${provider}`, providerLimit);
-  }
-
-  private async checkLimit(key: string, limit: number): Promise<RateLimitResult> {
-    const now = Date.now();
-    const windowMs = this.windowSeconds * 1000;
-    const windowStart = Math.floor(now / windowMs) * windowMs;
-    const redisKey = `${key}:${windowStart}`;
-
-    try {
-      const current = await this.redis.incr(redisKey);
-      
-      if (current === 1) {
-        await this.redis.pexpire(redisKey, windowMs);
-      }
-
-      const remaining = Math.max(0, limit - current);
-      const reset = windowStart + windowMs;
-      const success = current <= limit;
-
+/**
+ * Get rate limiter instance with combined checks
+ */
+export function getRateLimiter() {
+  return {
+    checkBoth: checkBothLimits,
+    checkGlobal: async (identifier: string = 'global'): Promise<RateLimitResult> => {
+      const result = await getGlobalLimiter().limit(identifier);
       return {
-        success,
-        limit,
-        remaining,
-        reset,
-        action: success ? 'allow' : 'deny',
+        success: result.success,
+        limit: result.limit,
+        remaining: result.remaining,
+        reset: new Date(result.reset),
       };
-    } catch (error) {
-      console.error('Rate limiter error:', error);
-      return { success: true, limit: Infinity, remaining: Infinity, reset: 0, action: 'allow' };
-    }
-  }
-
-  async checkBoth(provider: string): Promise<{ global: RateLimitResult; provider: RateLimitResult }> {
-    const [globalResult, providerResult] = await Promise.all([
-      this.checkGlobal(),
-      this.checkProvider(provider),
-    ]);
-
-    return { global: globalResult, provider: providerResult };
-  }
-}
-
-let limiterInstance: RateLimiter | null = null;
-
-export function getRateLimiter(): RateLimiter {
-  if (!limiterInstance) {
-    const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-    const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-    if (!redisUrl || !redisToken) {
-      throw new Error('Redis environment variables not configured');
-    }
-
-    limiterInstance = new RateLimiter(redisUrl, redisToken, 45, 1);
-  }
-
-  return limiterInstance;
+    },
+    checkProvider: async (providerSlug: string, identifier: string = 'global'): Promise<RateLimitResult> => {
+      const result = await getProviderLimiter().limit(`${providerSlug}:${identifier}`);
+      return {
+        success: result.success,
+        limit: result.limit,
+        remaining: result.remaining,
+        reset: new Date(result.reset),
+      };
+    },
+  };
 }

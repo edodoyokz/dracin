@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Search, ArrowLeft } from 'lucide-react';
-import { searchDramas } from '../lib/api-client';
-import type { DramaCard } from '../lib/types';
+import { searchDramas } from '@/lib/api-client';
+import type { DramaCard } from '@/lib/types';
 
 export default function SearchPage() {
   const [query, setQuery] = useState('');
@@ -18,7 +18,7 @@ export default function SearchPage() {
 
     setLoading(true);
     setSearched(true);
-    
+
     try {
       const data = await searchDramas(query);
       setResults(data);
@@ -65,7 +65,7 @@ export default function SearchPage() {
                 key={tag}
                 onClick={() => {
                   setQuery(tag);
-                  setTimeout(() => handleSearch({ preventDefault: () => {} } as React.FormEvent), 0);
+                  setTimeout(() => handleSearch({ preventDefault: () => { } } as React.FormEvent), 0);
                 }}
                 className="px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-bold hover:bg-slate-800"
               >

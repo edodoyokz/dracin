@@ -22,6 +22,7 @@ export interface ApiError {
 
 export type ErrorCode =
   | 'BAD_REQUEST'
+  | 'VALIDATION_ERROR'
   | 'UNAUTHORIZED'
   | 'FORBIDDEN_SUBSCRIPTION'
   | 'PROVIDER_UNAVAILABLE'
@@ -85,6 +86,17 @@ export interface WatchProgress {
   lastWatchedAt: string;
 }
 
+export interface Subscription {
+  id: string;
+  user_id: string;
+  status: string;
+  plan: string;
+  starts_at: string;
+  ends_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ContinueWatchingItem {
   dramaId: string;
   dramaTitle: string;
@@ -124,7 +136,7 @@ export interface ProviderCapabilities {
   playbackType: 'play' | 'stream' | 'video' | 'unknown';
 }
 
-export type Intent = 
+export type Intent =
   | 'home'
   | 'search'
   | 'detail'

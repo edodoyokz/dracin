@@ -5,7 +5,7 @@ import { CashDramaAdapter } from './cashdrama';
 import { ShortMaxAdapter } from './shortmax';
 import type { ProviderAdapter } from './base';
 
-export const adapters: Map<string, ProviderAdapter> = new Map([
+export const adapters = new Map<string, ProviderAdapter>([
   ['reelshort', new ReelShortAdapter()],
   ['goodshort', new GoodShortAdapter()],
   ['flextv', new FlexTVAdapter()],
