@@ -1,10 +1,11 @@
 /**
- * Cron endpoint: Sync Dramas
- * Triggered by Vercel Cron every 2 hours
+ * Cron endpoint: Sync Dramas and Providers
+ * Triggered by Vercel Cron once daily (free tier: 1 cron job limit)
  */
 
 import { NextResponse } from 'next/server';
 import { syncHomeDramas } from '@/jobs/sync-home-dramas';
+import { syncProviders } from '@/jobs/sync-providers';
 import { logger, generateRequestId } from '@/lib/observability/logger';
 import { isProduction } from '@/lib/config/env';
 
@@ -33,26 +34,65 @@ export async function GET(request: Request): Promise<NextResponse> {
         }
     }
 
-    try {
-        logger.info('cron_sync_dramas_started', { requestId });
+    const results = {
+        providers: { success: false, message: '' },
+        dramas: { success: false, message: '' },
+    };
 
-        await syncHomeDramas();
+    try {
+        logger.info('cron_sync_started', { requestId });
+
+        // Sync providers first
+        try {
+            await syncProviders();
+            results.providers = { success: true, message: 'Providers synced successfully' };
+            logger.info('cron_sync_providers_completed', { requestId });
+        } catch (error) {
+            results.providers = {
+                success: false,
+                message: error instanceof Error ? error.message : 'Unknown error',
+            };
+            logger.error('cron_sync_providers_failed', {
+                requestId,
+                error: results.providers.message,
+            });
+        }
+
+        // Sync dramas
+        try {
+            await syncHomeDramas();
+            results.dramas = { success: true, message: 'Dramas synced successfully' };
+            logger.info('cron_sync_dramas_completed', { requestId });
+        } catch (error) {
+            results.dramas = {
+                success: false,
+                message: error instanceof Error ? error.message : 'Unknown error',
+            };
+            logger.error('cron_sync_dramas_failed', {
+                requestId,
+                error: results.dramas.message,
+            });
+        }
 
         const latencyMs = Date.now() - startTime;
-        logger.info('cron_sync_dramas_completed', {
+        logger.info('cron_sync_completed', {
             requestId,
             latencyMs,
+            results,
         });
 
+        const allSuccess = results.providers.success && results.dramas.success;
+
         return NextResponse.json({
-            success: true,
-            message: 'Dramas synced successfully',
+            success: allSuccess,
+            message: allSuccess ? 'All syncs completed successfully' : 'Some syncs failed',
+            results,
             latencyMs,
-        });
+        }, { status: allSuccess ? 200 : 207 });
     } catch (error) {
         const latencyMs = Date.now() - startTime;
 
-        logger.error('cron_sync_dramas_failed', {
+        logger.error('cron_sync_failed', {
             requestId,
             error: error instanceof Error ? error.message : 'Unknown error',
             latencyMs,
@@ -63,6 +103,7 @@ export async function GET(request: Request): Promise<NextResponse> {
                 success: false,
                 error: 'Sync failed',
                 message: error instanceof Error ? error.message : 'Unknown error',
+                results,
             },
             { status: 500 }
         );
