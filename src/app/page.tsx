@@ -109,7 +109,7 @@ export default function HomePage() {
                   if (activeProvider !== 'all') {
                     router.push(`/providers/${activeProvider}`);
                   } else {
-                    router.push('/search');
+                    router.push('/home/see-all/for-you');
                   }
                 }}
                 animationDelay={100}
@@ -129,7 +129,7 @@ export default function HomePage() {
                   if (activeProvider !== 'all') {
                     router.push(`/providers/${activeProvider}`);
                   } else {
-                    router.push('/search');
+                    router.push('/home/see-all/trending');
                   }
                 }}
                 animationDelay={200}
@@ -152,7 +152,7 @@ export default function HomePage() {
                   if (activeProvider !== 'all') {
                     router.push(`/providers/${activeProvider}`);
                   } else {
-                    router.push('/search');
+                    router.push('/home/see-all/new-releases');
                   }
                 }}
                 animationDelay={400}

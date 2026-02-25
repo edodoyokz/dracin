@@ -8,6 +8,75 @@ import type { PlaybackResponse } from '../types';
 const captainToken = process.env.CAPTAIN_API_TOKEN || '';
 const captainClient = createCaptainClient(captainToken);
 
+function extractGoodshortChapterList(payload: unknown): Array<Record<string, unknown>> {
+  if (!payload || typeof payload !== 'object') return [];
+
+  const root = payload as Record<string, unknown>;
+  const data = root.data;
+
+  if (Array.isArray(data)) return data as Array<Record<string, unknown>>;
+  if (Array.isArray(root.list)) return root.list as Array<Record<string, unknown>>;
+
+  if (data && typeof data === 'object') {
+    const nested = data as Record<string, unknown>;
+    if (Array.isArray(nested.list)) return nested.list as Array<Record<string, unknown>>;
+    if (Array.isArray(nested.chapters)) return nested.chapters as Array<Record<string, unknown>>;
+  }
+
+  return [];
+}
+
+function chapterStreamUrl(chapter: Record<string, unknown>): string | null {
+  const multiVideos = chapter.multiVideos;
+  if (Array.isArray(multiVideos) && multiVideos.length > 0) {
+    const firstMv = multiVideos[0] as Record<string, unknown>;
+    if (typeof firstMv.filePath === 'string' && firstMv.filePath.length > 0) return firstMv.filePath;
+
+    const cdnList = firstMv.cdnList;
+    if (Array.isArray(cdnList) && cdnList.length > 0) {
+      const firstCdn = cdnList[0] as Record<string, unknown>;
+      if (typeof firstCdn.videoPath === 'string' && firstCdn.videoPath.length > 0) return firstCdn.videoPath;
+    }
+  }
+
+  if (typeof chapter.cdn === 'string' && chapter.cdn.length > 0) return chapter.cdn;
+
+  const cdnList = chapter.cdnList;
+  if (Array.isArray(cdnList) && cdnList.length > 0) {
+    const firstCdn = cdnList[0] as Record<string, unknown>;
+    if (typeof firstCdn.videoPath === 'string' && firstCdn.videoPath.length > 0) return firstCdn.videoPath;
+  }
+
+  return null;
+}
+
+function resolveGoodshortStreamFromChapters(payload: unknown, episodeToken: string): string | null {
+  const chapters = extractGoodshortChapterList(payload);
+  if (chapters.length === 0) return null;
+
+  const numericEpisode = Number.parseInt(episodeToken, 10);
+  const tokenLower = episodeToken.trim().toLowerCase();
+
+  let target = chapters.find((chapter) => {
+    const chapterId = String(chapter.chapterId ?? chapter.id ?? '').trim().toLowerCase();
+    return chapterId.length > 0 && chapterId === tokenLower;
+  });
+
+  if (!target && Number.isFinite(numericEpisode)) {
+    target = chapters.find((chapter, index) => {
+      const chapterNameNo = Number.parseInt(String(chapter.chapterName ?? ''), 10);
+      const indexNo = typeof chapter.index === 'number' ? chapter.index + 1 : index + 1;
+      return chapterNameNo === numericEpisode || indexNo === numericEpisode;
+    });
+  }
+
+  if (!target) {
+    target = chapters[0];
+  }
+
+  return chapterStreamUrl(target);
+}
+
 export async function getPlaybackUrl(
   providerSlug: string,
   providerDramaId: string,
@@ -19,6 +88,43 @@ export async function getPlaybackUrl(
   const limitCheck = await limiter.checkBoth(providerSlug);
   if (!limitCheck.global.success || !limitCheck.provider.success) {
     throw new Error('RATE_LIMITED');
+  }
+
+  if (providerSlug === 'goodshort') {
+    const episodesResolved = providerCatalog.resolveEndpoint(
+      providerSlug,
+      'episodes',
+      {
+        id: providerDramaId,
+        code: providerDramaId,
+        bookId: providerDramaId,
+        dramaId: providerDramaId,
+      },
+    );
+
+    if (episodesResolved) {
+      const chaptersResponse = await captainClient.get(episodesResolved.url, {
+        provider: providerSlug,
+        requestId,
+        timeout: 15000,
+      });
+
+      const chapterStream = resolveGoodshortStreamFromChapters(chaptersResponse.data, providerEpisodeId);
+
+      if (chapterStream) {
+        logger.info('playback_goodshort_chapter_stream_resolved', {
+          requestId,
+          provider: providerSlug,
+          dramaId: providerDramaId,
+          episodeId: providerEpisodeId,
+        });
+
+        return {
+          streamUrl: chapterStream,
+          expiresAt: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+        };
+      }
+    }
   }
 
   const resolved = providerCatalog.resolveEndpoint(
