@@ -31,15 +31,15 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.json(response, { status: 400 });
   }
 
-  const { q: query, page } = validation.data;
+  const { q: query, page, providers, genres, sort, limit } = validation.data;
 
   try {
     const cache = getCacheManager();
-    const cacheKey = createSearchKey(query, page);
+    const cacheKey = createSearchKey(`${query}:${providers.join(',')}:${genres.join(',')}:${sort}:${limit}`, page);
 
     const cached = await cache.get<DramaCard[]>(cacheKey);
     if (cached) {
-      logger.info('search_cache_hit', { requestId, query, page });
+      logger.info('search_cache_hit', { requestId, query, page, providers, genres, sort });
 
       const response: ApiResponse<DramaCard[]> = {
         data: cached,
@@ -47,35 +47,78 @@ export async function GET(request: Request): Promise<NextResponse> {
           requestId,
           timestamp: new Date().toISOString(),
           cache: 'hit',
+          pagination: {
+            page,
+            pageSize: cached.length,
+            total: cached.length,
+          },
         },
         error: null,
       };
       return NextResponse.json(response);
     }
 
-    logger.info('search_cache_miss', { requestId, query, page });
+    logger.info('search_cache_miss', { requestId, query, page, providers, genres, sort });
 
-    const activeProviders = providerCatalog.getActiveProviders()
+    // Filter providers if specified
+    let activeProviders = providerCatalog.getActiveProviders()
       .filter(p => {
         const caps = providerCatalog.getCapabilities(p.slug);
         return caps?.supportsSearch ?? false;
       })
-      .map(p => p.slug)
-      .slice(0, 10);
+      .map(p => p.slug);
 
-    const results = await searchAcrossProviders(query, activeProviders, requestId);
+    // Apply provider filter if specified
+    if (providers.length > 0) {
+      activeProviders = activeProviders.filter(p => providers.includes(p));
+    }
 
-    await cache.set(cacheKey, results, CACHE_TTL.SEARCH);
+    // Limit providers to prevent overloading
+    activeProviders = activeProviders.slice(0, 10);
+
+    let results = await searchAcrossProviders(query, activeProviders, requestId);
+
+    // Apply genre filter client-side (since provider APIs don't support genre filtering)
+    if (genres.length > 0) {
+      results = results.filter(drama =>
+        genres.some(g =>
+          drama.tags.some(tag => tag.toLowerCase() === g.toLowerCase())
+        )
+      );
+    }
+
+    // Apply sorting
+    switch (sort) {
+      case 'rating':
+        results.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        break;
+      case 'newest':
+        results.sort((a, b) => b.id.localeCompare(a.id));
+        break;
+      case 'popular':
+        results.sort((a, b) => b.episodeCount - a.episodeCount);
+        break;
+      case 'relevance':
+      default:
+        // Keep original order
+        break;
+    }
+
+    // Apply pagination
+    const startIndex = (page - 1) * limit;
+    const paginatedResults = results.slice(startIndex, startIndex + limit);
+
+    await cache.set(cacheKey, paginatedResults, CACHE_TTL.SEARCH);
 
     const response: ApiResponse<DramaCard[]> = {
-      data: results,
+      data: paginatedResults,
       meta: {
         requestId,
         timestamp: new Date().toISOString(),
         cache: 'miss',
         pagination: {
           page,
-          pageSize: results.length,
+          pageSize: paginatedResults.length,
           total: results.length,
         },
       },

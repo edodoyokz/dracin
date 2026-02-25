@@ -59,7 +59,60 @@ export const pageSchema = z.string()
 type SearchRequestInput = {
     q: string;
     page?: string | undefined;
+    providers?: string | undefined;
+    genres?: string | undefined;
+    sort?: string | undefined;
+    limit?: string | undefined;
 };
+
+/**
+ * Sort option validation
+ */
+const sortSchema = z.string()
+    .optional()
+    .default('relevance')
+    .refine(val => ['relevance', 'newest', 'rating', 'popular'].includes(val), {
+        message: 'Sort must be one of: relevance, newest, rating, popular',
+    });
+
+/**
+ * Limit validation
+ */
+const limitSchema = z.string()
+    .optional()
+    .default('24')
+    .transform(val => parseInt(val, 10))
+    .refine(val => !isNaN(val) && val >= 1 && val <= 100, {
+        message: 'Limit must be an integer between 1 and 100',
+    });
+
+/**
+ * Providers filter validation (comma-separated provider slugs)
+ */
+const providersFilterSchema = z.string()
+    .optional()
+    .default('')
+    .transform(val => {
+        if (!val) return [];
+        return val.split(',').map(p => p.trim()).filter(Boolean);
+    })
+    .refine(val => val.length <= 20, {
+        message: 'Too many providers selected (max 20)',
+    });
+
+/**
+ * Genres filter validation (comma-separated genre names)
+ */
+const genresFilterSchema = z.string()
+    .optional()
+    .default('')
+    .transform(val => {
+        if (!val) return [];
+        return val.split(',').map(g => g.trim()).filter(Boolean);
+    })
+    .refine(val => val.length <= 10, {
+        message: 'Too many genres selected (max 10)',
+    });
 
 /**
  * Search API request validation
@@ -67,6 +120,10 @@ type SearchRequestInput = {
 export const searchRequestSchema = z.object({
     q: searchQuerySchema,
     page: pageSchema,
+    providers: providersFilterSchema,
+    genres: genresFilterSchema,
+    sort: sortSchema,
+    limit: limitSchema,
 });
 
 // ============================================================================

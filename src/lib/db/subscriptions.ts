@@ -3,15 +3,27 @@ import { getSupabaseClient } from './client';
 
 export async function checkEntitlement(
   userId: string,
-  dramaId: string
+  dramaId: string,
+  providerSlug?: string
 ): Promise<{ allowed: boolean; reason?: string }> {
   const supabase = getSupabaseClient();
-  
-  const { data: drama } = await supabase
+
+  let { data: drama } = await supabase
     .from('dramas')
     .select('is_premium')
     .eq('id', dramaId)
     .single();
+
+  if (!drama && providerSlug) {
+    const { data: dramaByProviderId } = await supabase
+      .from('dramas')
+      .select('is_premium')
+      .eq('provider_slug', providerSlug)
+      .eq('provider_drama_id', dramaId)
+      .single();
+
+    drama = dramaByProviderId;
+  }
 
   if (!drama) {
     return { allowed: false, reason: 'Drama not found' };
@@ -34,7 +46,7 @@ export async function checkEntitlement(
 
   const now = new Date();
   const endsAt = new Date(subscription.ends_at);
-  
+
   if (endsAt < now) {
     return { allowed: false, reason: 'Subscription expired' };
   }
@@ -44,7 +56,7 @@ export async function checkEntitlement(
 
 export async function getActiveSubscription(userId: string): Promise<Subscription | null> {
   const supabase = getSupabaseClient();
-  
+
   const { data } = await supabase
     .from('subscriptions')
     .select('*')

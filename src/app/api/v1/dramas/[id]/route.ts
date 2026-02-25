@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getDramaById } from '@/lib/db/dramas';
+import { getDramaById, getDramaByProviderId, getRelatedDramas } from '@/lib/db/dramas';
 import { logger, generateRequestId } from '@/lib/observability/logger';
 import { validatePathParams, dramaDetailPathSchema } from '@/lib/validation/schemas';
-import type { ApiResponse, DramaDetail } from '@/lib/types';
+import type { ApiResponse, DramaDetail, DramaCard } from '@/lib/types';
+
+export interface DramaDetailResponse {
+  drama: DramaDetail;
+  related: DramaCard[];
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +38,16 @@ export async function GET(
   const { id } = validation.data;
 
   try {
-    const drama = await getDramaById(id);
+    let drama = await getDramaById(id);
+
+    if (!drama && id.includes(':')) {
+      const [providerSlug, ...dramaIdParts] = id.split(':');
+      const providerDramaId = dramaIdParts.join(':');
+
+      if (providerSlug && providerDramaId) {
+        drama = await getDramaByProviderId(providerSlug, providerDramaId);
+      }
+    }
 
     if (!drama) {
       const response: ApiResponse<null> = {
@@ -48,8 +62,13 @@ export async function GET(
       return NextResponse.json(response, { status: 404 });
     }
 
-    const response: ApiResponse<DramaDetail> = {
-      data: drama,
+    const related = await getRelatedDramas(drama.id, 8);
+
+    const response: ApiResponse<DramaDetailResponse> = {
+      data: {
+        drama,
+        related,
+      },
       meta: {
         requestId,
         timestamp: new Date().toISOString(),
@@ -59,7 +78,9 @@ export async function GET(
 
     logger.info('drama_detail_fetched', {
       requestId,
-      dramaId: id,
+      requestedDramaId: id,
+      dramaId: drama.id,
+      relatedCount: related.length,
       latencyMs: Date.now() - startTime,
     });
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPlaybackUrl } from '@/lib/services/playback';
 import { checkEntitlement } from '@/lib/db/subscriptions';
+import { getDramaByProviderId, getEpisodesByDramaId } from '@/lib/db/dramas';
 import { getCacheManager, createPlaybackKey, CACHE_TTL } from '@/lib/cache/redis';
 import { logger, generateRequestId } from '@/lib/observability/logger';
 import { validateSearchParams, playbackRequestSchema } from '@/lib/validation/schemas';
@@ -34,12 +35,34 @@ export async function GET(request: Request): Promise<NextResponse> {
   const { provider, drama: dramaId, episode: episodeId, userId } = validation.data;
 
   try {
+    let resolvedEpisodeId = episodeId;
+
+    if (/^\d+$/.test(episodeId)) {
+      const drama = await getDramaByProviderId(provider, dramaId);
+      if (drama) {
+        const episodes = await getEpisodesByDramaId(drama.id);
+        const numericEpisode = Number.parseInt(episodeId, 10);
+        const matched = episodes.find((ep) => ep.episodeNo === numericEpisode);
+
+        if (matched) {
+          resolvedEpisodeId = matched.chapterId || matched.providerEpisodeId || episodeId;
+          logger.info('playback_episode_resolved', {
+            requestId,
+            provider,
+            dramaId,
+            requestedEpisodeId: episodeId,
+            resolvedEpisodeId,
+          });
+        }
+      }
+    }
+
     const cache = getCacheManager();
-    const cacheKey = createPlaybackKey(provider, dramaId, episodeId);
+    const cacheKey = createPlaybackKey(provider, dramaId, resolvedEpisodeId);
 
     const cached = await cache.get<PlaybackResponse>(cacheKey);
     if (cached) {
-      logger.info('playback_cache_hit', { requestId, provider, dramaId, episodeId });
+      logger.info('playback_cache_hit', { requestId, provider, dramaId, episodeId: resolvedEpisodeId });
 
       const response: ApiResponse<PlaybackResponse> = {
         data: cached,
@@ -53,7 +76,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       return NextResponse.json(response);
     }
 
-    const entitlement = await checkEntitlement(userId, dramaId);
+    const entitlement = await checkEntitlement(userId, dramaId, provider);
     if (!entitlement.allowed) {
       logger.warn('playback_entitlement_denied', {
         requestId,
@@ -75,7 +98,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     logger.info('playback_entitlement_allowed', { requestId, userId, dramaId });
 
-    const playback = await getPlaybackUrl(provider, dramaId, episodeId, requestId);
+    const playback = await getPlaybackUrl(provider, dramaId, resolvedEpisodeId, requestId);
 
     await cache.set(cacheKey, playback, CACHE_TTL.PLAYBACK);
 
@@ -93,7 +116,8 @@ export async function GET(request: Request): Promise<NextResponse> {
       requestId,
       provider,
       dramaId,
-      episodeId,
+      requestedEpisodeId: episodeId,
+      episodeId: resolvedEpisodeId,
       latencyMs: Date.now() - startTime,
     });
 
@@ -105,7 +129,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       requestId,
       provider,
       dramaId,
-      episodeId,
+      requestedEpisodeId: episodeId,
       error: errorMessage,
       latencyMs: Date.now() - startTime,
     });

@@ -18,9 +18,22 @@ export async function searchAcrossProviders(
 
   for (const slug of providerSlugs) {
     try {
-      const resolved = providerCatalog.resolveEndpoint(slug, 'search', { q: query });
+      const resolved = providerCatalog.resolveEndpoint(slug, 'search', {
+        q: query,
+        query,
+        keyword: query,
+        page: '1',
+      });
       if (!resolved || resolved.missingParams.length > 0) {
         continue;
+      }
+
+      // Most /search endpoints expect `q` as query param even when path has no params.
+      // Attach it explicitly to avoid 400 "missing q" responses.
+      let searchUrl = resolved.url;
+      if (resolved.endpoint.pathParams.length === 0) {
+        const separator = searchUrl.includes('?') ? '&' : '?';
+        searchUrl = `${searchUrl}${separator}q=${encodeURIComponent(query)}`;
       }
 
       const limitCheck = await limiter.checkBoth(slug);
@@ -29,7 +42,7 @@ export async function searchAcrossProviders(
         continue;
       }
 
-      const response = await captainClient.get(resolved.url, {
+      const response = await captainClient.get(searchUrl, {
         provider: slug,
         requestId,
       });

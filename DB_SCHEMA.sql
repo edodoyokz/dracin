@@ -92,6 +92,17 @@ create table if not exists subscriptions (
 
 create index if not exists idx_subscriptions_user on subscriptions(user_id, status);
 
+-- Bookmarks
+create table if not exists bookmarks (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  drama_id uuid not null references dramas(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique(user_id, drama_id)
+);
+
+create index if not exists idx_bookmarks_user_created on bookmarks(user_id, created_at desc);
+
 -- Watch history / progress
 -- NOTE: The unique constraint on (user_id, drama_id, episode_id) has a caveat:
 -- episode_id can be NULL, which may cause issues. Run migration for partial indexes.

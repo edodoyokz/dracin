@@ -31,6 +31,7 @@ interface ShortMaxEpisode {
   id?: string;
   _id?: string;
   episodeId?: string;
+  episode?: number;
   title?: string;
   name?: string;
   episodeNo?: number;
@@ -144,12 +145,41 @@ export class ShortMaxAdapter extends BaseProviderAdapter {
   }
 
   mapEpisodes(response: unknown): EpisodeItem[] {
-    const resp = response as ShortMaxEpisodesResponse;
-    const episodes = resp?.data || resp?.episodes || resp?.list || (Array.isArray(response) ? response as ShortMaxEpisode[] : []);
+    const resp = response as ShortMaxEpisodesResponse & {
+      chapterList?: ShortMaxEpisode[];
+      chapter_list?: ShortMaxEpisode[];
+      drama?: { episodes?: ShortMaxEpisode[]; list?: ShortMaxEpisode[] };
+      detail?: { episodes?: ShortMaxEpisode[]; list?: ShortMaxEpisode[] };
+      data?: ShortMaxEpisode[] | { episodes?: ShortMaxEpisode[]; list?: ShortMaxEpisode[]; chapters?: ShortMaxEpisode[] };
+    };
+
+    const nestedData: { episodes?: ShortMaxEpisode[]; list?: ShortMaxEpisode[]; chapters?: ShortMaxEpisode[] } | undefined =
+      !Array.isArray(resp?.data) && resp?.data && typeof resp.data === 'object'
+        ? (resp.data as { episodes?: ShortMaxEpisode[]; list?: ShortMaxEpisode[]; chapters?: ShortMaxEpisode[] })
+        : undefined;
+
+    const episodes =
+      (Array.isArray(resp?.data) ? resp.data : undefined)
+      || resp?.episodes
+      || resp?.list
+      || resp?.chapterList
+      || resp?.chapter_list
+      || nestedData?.episodes
+      || nestedData?.list
+      || nestedData?.chapters
+      || resp?.drama?.episodes
+      || resp?.drama?.list
+      || resp?.detail?.episodes
+      || resp?.detail?.list
+      || (Array.isArray(response) ? response as ShortMaxEpisode[] : []);
+
+    if (!Array.isArray(episodes)) {
+      return [];
+    }
 
     return episodes.map(ep => {
       const epId = ep.code || ep.id || ep._id || ep.episodeId || '';
-      const epNo = ep.episodeNo || ep.number || ep.sequence || 0;
+      const epNo = ep.episode || ep.episodeNo || ep.number || ep.sequence || 0;
       return {
         episodeId: `${this.slug}:${epId}`,
         providerEpisodeId: epId,

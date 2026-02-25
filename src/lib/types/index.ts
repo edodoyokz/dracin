@@ -101,11 +101,81 @@ export interface ContinueWatchingItem {
   dramaId: string;
   dramaTitle: string;
   episodeId: string;
+  episodeNumber: number;
+  episodeTitle?: string;
+  progressPercent: number;
+  progressSeconds: number;
+  remainingSeconds: number;
+  durationMs: number;
+  coverUrl: string;
+  provider: string;
+  providerSlug: string;
+  lastWatchedAt: string;
+}
+
+// Phase 2: Drama Detail Enhancement Types
+export interface WatchProgressForDrama {
+  episodeId: string;
   episodeNo: number;
+  episodeTitle?: string;
   progressSeconds: number;
   durationMs: number;
   coverUrl: string;
-  providerSlug: string;
+  lastWatchedAt: string;
+}
+
+// Homepage Redesign Types (Phase 1)
+export interface FeaturedDrama extends DramaCard {
+  synopsis: string;
+  isNew: boolean;
+}
+
+export interface DramaWithRank extends DramaCard {
+  rank?: number;
+}
+
+export interface NewReleaseGroup {
+  period: 'today' | 'yesterday' | 'this_week';
+  label: string;
+  dramas: DramaCard[];
+}
+
+export interface ProviderSectionData {
+  provider: {
+    slug: string;
+    name: string;
+    logoUrl?: string;
+    contentCount: number;
+  };
+  dramas: DramaCard[];
+  totalCount: number;
+}
+
+export interface GenreData {
+  id: string;
+  name: string;
+  posterUrls: string[];
+  dramaCount: number;
+  color: string;
+}
+
+export interface HomeResponseData {
+  featured: FeaturedDrama[];
+  continueWatching: ContinueWatchingItem[] | null;
+  forYou: DramaCard[];
+  trending: DramaWithRank[];
+  newReleases: NewReleaseGroup[];
+  providerSections: ProviderSectionData[];
+  genres: GenreData[];
+  providers: ProviderInfo[];
+}
+
+export interface ProviderInfo {
+  slug: string;
+  name: string;
+  logoUrl?: string;
+  contentCount: number;
+  isNew?: boolean;
 }
 
 export interface ProviderEndpoint {

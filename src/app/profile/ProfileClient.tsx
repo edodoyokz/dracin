@@ -1,10 +1,10 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { User, Crown, Bookmark, Clock, ChevronRight, ArrowLeft, LogOut } from 'lucide-react';
+import { User, Crown, Bookmark, Clock, ChevronRight, LogOut } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import { logoutAction } from '../actions/auth';
+import { PageHeader } from '@/app/components/layout';
 
 interface ProfileClientProps {
     user: {
@@ -30,22 +30,20 @@ export default function ProfileClient({ user }: ProfileClientProps) {
 
     return (
         <div className="min-h-screen bg-neutral-950 p-6 selection:bg-red-500/30 animate-fade-in">
-            <div className="flex items-center justify-between mb-10">
-                <div className="flex items-center space-x-4">
-                    <Link href="/" className="text-white hover:text-neutral-300 transition-colors bg-white/5 p-2 rounded-full backdrop-blur-sm">
-                        <ArrowLeft size={20} />
-                    </Link>
-                    <h1 className="text-2xl font-black tracking-tight drop-shadow-sm">Profil</h1>
-                </div>
-                <button
-                    onClick={handleLogout}
-                    disabled={isPending}
-                    className="text-neutral-400 hover:text-red-500 hover:bg-red-500/10 p-2 rounded-full transition-all duration-300 disabled:opacity-50"
-                    title="Logout"
-                >
-                    <LogOut size={20} />
-                </button>
-            </div>
+            <PageHeader
+                title="Profil"
+                action={
+                    <button
+                        onClick={handleLogout}
+                        disabled={isPending}
+                        className="text-neutral-400 hover:text-red-500 hover:bg-red-500/10 p-2 rounded-full transition-all duration-300 disabled:opacity-50"
+                        title="Logout"
+                        aria-label="Logout"
+                    >
+                        <LogOut size={20} />
+                    </button>
+                }
+            />
 
             <div className="flex flex-col items-center text-center space-y-5 mb-12 animate-slide-up" style={{ animationDelay: '100ms' }}>
                 <div className="relative group cursor-pointer">

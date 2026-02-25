@@ -1,27 +1,82 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getHomeDramas } from '../lib/api-client';
-import type { DramaCard } from '../lib/types';
+import type { HomeResponseData, DramaCard } from '@/lib/types';
 
-export function useHomeDramas() {
-  const [dramas, setDramas] = useState<DramaCard[]>([]);
+interface UseHomeDataReturn {
+  data: HomeResponseData | null;
+  loading: boolean;
+  error: string | null;
+  refetch: () => void;
+}
+
+export function useHomeData(): UseHomeDataReturn {
+  const [data, setData] = useState<HomeResponseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const data = await getHomeDramas();
-        setDramas(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load');
-      } finally {
-        setLoading(false);
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/v1/home');
+      const result = await response.json();
+
+      if (result.error) {
+        throw new Error(result.error.message);
       }
+
+      setData(result.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load home data');
+    } finally {
+      setLoading(false);
     }
-    load();
+  };
+
+  useEffect(() => {
+    fetchData();
   }, []);
 
-  return { dramas, loading, error };
+  return {
+    data,
+    loading,
+    error,
+    refetch: fetchData,
+  };
 }
+
+// Legacy hook for backward compatibility
+interface UseHomeDramasReturn {
+  dramas: DramaCard[];
+  loading: boolean;
+  error: string | null;
+}
+
+export function useHomeDramas(): UseHomeDramasReturn {
+  const { data, loading, error } = useHomeData();
+
+  // Flatten all dramas for legacy usage
+  const allDramas = data
+    ? [
+      ...data.featured,
+      ...data.trending,
+      ...data.forYou,
+      ...data.providerSections.flatMap((s) => s.dramas),
+    ]
+    : [];
+
+  // Remove duplicates by id
+  const uniqueDramas = allDramas.filter(
+    (drama, index, self) => index === self.findIndex((d) => d.id === drama.id)
+  );
+
+  return {
+    dramas: uniqueDramas,
+    loading,
+    error,
+  };
+}
+
+export default useHomeData;

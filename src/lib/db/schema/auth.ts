@@ -87,12 +87,28 @@ export const reports = pgTable('reports', {
 });
 
 /**
+ * Bookmarks table - stores user's bookmarked dramas
+ */
+export const bookmarks = pgTable('bookmarks', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+    dramaId: uuid('drama_id').notNull().references(() => dramas.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+    userDramaUnique: {
+        columns: [table.userId, table.dramaId],
+        name: 'bookmarks_user_id_drama_id_key',
+    },
+}));
+
+/**
  * Profile relations
  */
 export const profilesRelations = relations(profiles, ({ many }) => ({
     subscriptions: many(subscriptions),
     watchHistory: many(watchHistory),
     reports: many(reports),
+    bookmarks: many(bookmarks),
 }));
 
 /**
@@ -133,6 +149,20 @@ export const reportsRelations = relations(reports, ({ one }) => ({
     }),
 }));
 
+/**
+ * Bookmarks relations
+ */
+export const bookmarksRelations = relations(bookmarks, ({ one }) => ({
+    user: one(profiles, {
+        fields: [bookmarks.userId],
+        references: [profiles.id],
+    }),
+    drama: one(dramas, {
+        fields: [bookmarks.dramaId],
+        references: [dramas.id],
+    }),
+}));
+
 // Type exports
 export type Profile = typeof profiles.$inferSelect;
 export type NewProfile = typeof profiles.$inferInsert;
@@ -142,3 +172,5 @@ export type WatchHistoryEntry = typeof watchHistory.$inferSelect;
 export type NewWatchHistoryEntry = typeof watchHistory.$inferInsert;
 export type Report = typeof reports.$inferSelect;
 export type NewReport = typeof reports.$inferInsert;
+export type Bookmark = typeof bookmarks.$inferSelect;
+export type NewBookmark = typeof bookmarks.$inferInsert;

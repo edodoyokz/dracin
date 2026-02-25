@@ -35,12 +35,13 @@ export interface DbEpisode {
   title: string;
   duration_ms: number;
   is_locked: boolean;
+  thumbnail_url?: string;
   last_synced_at: string;
 }
 
 export async function getHomeDramas(limit: number = 20): Promise<DramaCard[]> {
   const supabase = getSupabaseClient();
-  
+
   const { data, error } = await supabase
     .from('dramas')
     .select(`
@@ -60,7 +61,7 @@ export async function getHomeDramas(limit: number = 20): Promise<DramaCard[]> {
 
 export async function getDramaById(id: string): Promise<DramaDetail | null> {
   const supabase = getSupabaseClient();
-  
+
   const { data, error } = await supabase
     .from('dramas')
     .select(`
@@ -78,11 +79,11 @@ export async function getDramaById(id: string): Promise<DramaDetail | null> {
 }
 
 export async function getDramaByProviderId(
-  providerSlug: string, 
+  providerSlug: string,
   providerDramaId: string
 ): Promise<DramaDetail | null> {
   const supabase = getSupabaseClient();
-  
+
   const { data, error } = await supabase
     .from('dramas')
     .select(`
@@ -102,7 +103,7 @@ export async function getDramaByProviderId(
 
 export async function getEpisodesByDramaId(dramaId: string): Promise<EpisodeItem[]> {
   const supabase = getSupabaseClient();
-  
+
   const { data, error } = await supabase
     .from('episodes')
     .select('*')
@@ -118,7 +119,7 @@ export async function getEpisodesByDramaId(dramaId: string): Promise<EpisodeItem
 
 export async function searchDramas(query: string, limit: number = 20): Promise<DramaCard[]> {
   const supabase = getSupabaseClient();
-  
+
   const { data, error } = await supabase
     .from('dramas')
     .select(`
@@ -172,5 +173,227 @@ function mapDbEpisodeToItem(episode: DbEpisode): EpisodeItem {
     title: episode.title,
     durationMs: episode.duration_ms,
     isLocked: episode.is_locked,
+    thumbnailUrl: episode.thumbnail_url,
   };
+}
+
+// Phase 2: Drama Detail Enhancement Queries
+
+export async function getRelatedDramas(
+  dramaId: string,
+  limit: number = 8
+): Promise<DramaCard[]> {
+  const supabase = getSupabaseClient();
+
+  // First, get the current drama's genres and provider
+  const { data: currentDrama } = await supabase
+    .from('dramas')
+    .select('genres, provider_slug')
+    .eq('id', dramaId)
+    .single();
+
+  if (!currentDrama) {
+    return [];
+  }
+
+  // Build the query - find dramas with same provider or matching genres
+  let query = supabase
+    .from('dramas')
+    .select(`
+      *,
+      providers!inner(name)
+    `)
+    .eq('providers.status', 'active')
+    .neq('id', dramaId);
+
+  // Filter by same provider
+  query = query.eq('provider_slug', currentDrama.provider_slug);
+
+  // Execute the query
+  const { data, error } = await query
+    .order('popularity_score', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to fetch related dramas: ${error.message}`);
+  }
+
+  return (data as DbDrama[]).map(mapDbDramaToCard);
+}
+
+export async function getEpisodesWithThumbnails(dramaId: string): Promise<EpisodeItem[]> {
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+    .from('episodes')
+    .select('*')
+    .eq('drama_id', dramaId)
+    .order('episode_no', { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to fetch episodes with thumbnails: ${error.message}`);
+  }
+
+  return (data as DbEpisode[]).map(mapDbEpisodeToItem);
+}
+
+// Homepage Redesign Queries (Phase 1)
+
+import type { FeaturedDrama, DramaWithRank, ProviderSectionData, GenreData, ProviderInfo } from '../types';
+
+export async function getFeaturedDramas(limit: number = 5): Promise<FeaturedDrama[]> {
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+    .from('dramas')
+    .select(`
+      *,
+      providers!inner(name)
+    `)
+    .eq('providers.status', 'active')
+    .order('popularity_score', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to fetch featured dramas: ${error.message}`);
+  }
+
+  return (data as DbDrama[]).map(drama => ({
+    ...mapDbDramaToCard(drama),
+    synopsis: drama.synopsis,
+    isNew: new Date(drama.created_at).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000,
+  }));
+}
+
+export async function getTrendingDramas(limit: number = 10): Promise<DramaWithRank[]> {
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+    .from('dramas')
+    .select(`
+      *,
+      providers!inner(name)
+    `)
+    .eq('providers.status', 'active')
+    .order('popularity_score', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to fetch trending dramas: ${error.message}`);
+  }
+
+  return (data as DbDrama[]).map((drama, index) => ({
+    ...mapDbDramaToCard(drama),
+    rank: index + 1,
+  }));
+}
+
+export async function getNewReleases(limit: number = 20): Promise<DbDrama[]> {
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+    .from('dramas')
+    .select(`
+      *,
+      providers!inner(name)
+    `)
+    .eq('providers.status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to fetch new releases: ${error.message}`);
+  }
+
+  return (data as DbDrama[]);
+}
+
+export async function getTopProviders(limit: number = 6): Promise<ProviderInfo[]> {
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+    .from('providers')
+    .select('slug, name, vip_group')
+    .eq('status', 'active')
+    .order('vip_group', { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to fetch top providers: ${error.message}`);
+  }
+
+  // Get content counts for each provider
+  const providerSlugs = (data || []).map(p => p.slug);
+  const { data: counts, error: countError } = await supabase
+    .from('dramas')
+    .select('provider_slug')
+    .in('provider_slug', providerSlugs);
+
+  if (countError) {
+    throw new Error(`Failed to fetch provider counts: ${countError.message}`);
+  }
+
+  const countMap = new Map<string, number>();
+  (counts || []).forEach(d => {
+    countMap.set(d.provider_slug, (countMap.get(d.provider_slug) || 0) + 1);
+  });
+
+  return (data || []).map(provider => ({
+    slug: provider.slug,
+    name: provider.name,
+    contentCount: countMap.get(provider.slug) || 0,
+  }));
+}
+
+export async function getProviderSections(): Promise<ProviderSectionData[]> {
+  const providers = await getTopProviders(6);
+  const supabase = getSupabaseClient();
+
+  const sections: ProviderSectionData[] = [];
+
+  for (const provider of providers) {
+    const { data: dramas, error } = await supabase
+      .from('dramas')
+      .select(`
+        *,
+        providers!inner(name)
+      `)
+      .eq('provider_slug', provider.slug)
+      .order('popularity_score', { ascending: false })
+      .limit(10);
+
+    if (error) continue;
+
+    sections.push({
+      provider: {
+        slug: provider.slug,
+        name: provider.name,
+        contentCount: provider.contentCount,
+      },
+      dramas: (dramas as DbDrama[]).map(mapDbDramaToCard),
+      totalCount: provider.contentCount,
+    });
+  }
+
+  return sections;
+}
+
+export async function getAllProviders(): Promise<ProviderInfo[]> {
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+    .from('providers')
+    .select('slug, name, vip_group')
+    .eq('status', 'active')
+    .order('name', { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to fetch providers: ${error.message}`);
+  }
+
+  return (data || []).map(provider => ({
+    slug: provider.slug,
+    name: provider.name,
+    contentCount: 0,
+  }));
 }

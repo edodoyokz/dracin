@@ -36,11 +36,18 @@ interface GoodShortHomeResponse {
 }
 
 interface GoodShortChapter {
-  chapterId: string;
-  title: string;
-  sequence: number;
+  chapterId?: string;
+  id?: string | number;
+  title?: string;
+  chapterName?: string;
+  sequence?: number;
+  index?: number;
   isLocked?: boolean;
+  charged?: boolean;
+  consumeType?: number;
   duration?: number;
+  playTime?: number;
+  image?: string;
 }
 
 interface GoodShortVideo {
@@ -115,14 +122,37 @@ export class GoodShortAdapter extends BaseProviderAdapter {
     const chapters = resp?.data || resp?.chapters || resp?.list || (Array.isArray(response) ? response as GoodShortChapter[] : []);
     if (!Array.isArray(chapters)) return [];
 
-    return chapters.map(ch => ({
-      episodeId: `${this.slug}:${ch.chapterId}`,
-      providerEpisodeId: ch.chapterId,
-      episodeNo: ch.sequence,
-      title: ch.title,
-      durationMs: ch.duration || 0,
-      isLocked: ch.isLocked || false,
-    }));
+    return chapters.map((ch, idx) => {
+      const chapterId = String(ch.chapterId ?? ch.id ?? '').trim();
+
+      const episodeNoFromName = ch.chapterName ? Number.parseInt(ch.chapterName, 10) : Number.NaN;
+      const sequence = typeof ch.sequence === 'number' ? ch.sequence : undefined;
+      const indexNo = typeof ch.index === 'number' ? ch.index + 1 : undefined;
+      const episodeNo = !Number.isNaN(episodeNoFromName)
+        ? episodeNoFromName
+        : (sequence ?? indexNo ?? idx + 1);
+
+      const durationMs = typeof ch.playTime === 'number'
+        ? ch.playTime * 1000
+        : (typeof ch.duration === 'number' ? ch.duration : 0);
+
+      const isLocked = typeof ch.isLocked === 'boolean'
+        ? ch.isLocked
+        : (Boolean(ch.charged) || (ch.consumeType ?? 0) > 0);
+
+      const title = ch.title || ch.chapterName || `Episode ${episodeNo}`;
+
+      return {
+        episodeId: `${this.slug}:${chapterId || episodeNo}`,
+        providerEpisodeId: chapterId || undefined,
+        chapterId: chapterId || undefined,
+        episodeNo,
+        title,
+        durationMs,
+        isLocked,
+        thumbnailUrl: ch.image,
+      };
+    });
   }
 
   mapPlayback(response: unknown): PlaybackResponse {

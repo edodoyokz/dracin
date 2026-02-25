@@ -19,6 +19,53 @@ function getCaptainClient() {
   return captainClientInstance;
 }
 
+function unwrapCaptainPayload(payload: unknown): unknown {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return payload;
+  }
+
+  const raw = payload as Record<string, unknown>;
+  const hasData = raw.data !== undefined;
+  const isWrapper = hasData && (
+    raw.success !== undefined
+    || raw.code !== undefined
+    || raw.cached !== undefined
+    || raw.status !== undefined
+    || raw.message !== undefined
+  );
+
+  return isWrapper ? raw.data : payload;
+}
+
+function extractEpisodesPayload(payload: unknown, intent: string): unknown {
+  const unwrapped = unwrapCaptainPayload(payload);
+
+  if (!unwrapped || typeof unwrapped !== 'object' || Array.isArray(unwrapped)) {
+    return unwrapped;
+  }
+
+  const root = unwrapped as Record<string, unknown>;
+
+  if (Array.isArray(root.episodes) || Array.isArray(root.chapters) || Array.isArray(root.list)) {
+    return unwrapped;
+  }
+
+  if (intent === 'detail') {
+    const detailNodes = [root.drama, root.detail, root.book, root.series, root.data];
+
+    for (const node of detailNodes) {
+      if (!node || typeof node !== 'object' || Array.isArray(node)) continue;
+      const record = node as Record<string, unknown>;
+      const nested = record.episodes || record.chapters || record.list || record.chapter_list;
+      if (Array.isArray(nested)) {
+        return nested;
+      }
+    }
+  }
+
+  return unwrapped;
+}
+
 export async function syncEpisodes(
   providerSlug: string,
   providerDramaId: string
@@ -33,13 +80,49 @@ export async function syncEpisodes(
       return;
     }
 
-    const resolved = providerCatalog.resolveEndpoint(providerSlug, 'episodes', {
+    const endpointParams = {
       id: providerDramaId,
-    });
+      code: providerDramaId,
+      bookId: providerDramaId,
+      dramaId: providerDramaId,
+      seriesId: providerDramaId,
+      slug: providerDramaId,
+    };
+
+    let resolved = providerCatalog.resolveEndpoint(providerSlug, 'episodes', endpointParams);
+
+    if (!resolved) {
+      for (const fallback of ['playback', 'detail'] as const) {
+        resolved = providerCatalog.resolveEndpoint(providerSlug, fallback, endpointParams);
+
+        if (resolved) {
+          logger.info('sync_episodes_fallback_intent', { provider: providerSlug, fallback });
+          break;
+        }
+      }
+    }
 
     if (!resolved) {
       logger.warn('sync_episodes_no_endpoint', { provider: providerSlug, dramaId: providerDramaId });
       return;
+    }
+
+    logger.info('sync_episodes_endpoint_selected', {
+      provider: providerSlug,
+      dramaId: providerDramaId,
+      endpointPath: resolved.endpoint.path,
+      endpointPathParams: resolved.endpoint.pathParams,
+      missingParams: resolved.missingParams,
+      resolvedUrl: resolved.url,
+    });
+
+    if (resolved.missingParams.length > 0) {
+      logger.error('sync_episodes_endpoint_missing_params', {
+        provider: providerSlug,
+        dramaId: providerDramaId,
+        endpointPath: resolved.endpoint.path,
+        missingParams: resolved.missingParams,
+      });
     }
 
     const response = await getCaptainClient().get(resolved.url, {
@@ -53,7 +136,27 @@ export async function syncEpisodes(
       return;
     }
 
-    const episodes: EpisodeItem[] = adapter.mapEpisodes(response.data);
+    const episodesPayload = extractEpisodesPayload(response.data, resolved.intent);
+    const episodes: EpisodeItem[] = adapter.mapEpisodes(episodesPayload);
+
+    logger.info('sync_episodes_payload_mapped', {
+      provider: providerSlug,
+      dramaId: providerDramaId,
+      intent: resolved.intent,
+      endpointPath: resolved.endpoint.path,
+      rawType: typeof response.data,
+      rawKeys:
+        response.data && typeof response.data === 'object'
+          ? Object.keys(response.data as Record<string, unknown>).slice(0, 10)
+          : [],
+      extractedType: typeof episodesPayload,
+      extractedKeys:
+        episodesPayload && typeof episodesPayload === 'object' && !Array.isArray(episodesPayload)
+          ? Object.keys(episodesPayload as Record<string, unknown>).slice(0, 10)
+          : [],
+      extractedIsArray: Array.isArray(episodesPayload),
+      mappedCount: episodes.length,
+    });
 
     const drama = await getDramaByProviderId(providerSlug, providerDramaId);
     if (!drama) {
@@ -61,31 +164,75 @@ export async function syncEpisodes(
       return;
     }
 
-    for (const episode of episodes) {
+    const upsertPayload = episodes.map(episode => ({
+      drama_id: drama.id,
+      provider_slug: providerSlug,
+      provider_episode_id: episode.providerEpisodeId,
+      episode_no: episode.episodeNo,
+      chapter_id: episode.chapterId,
+      slug: episode.slug,
+      title: episode.title,
+      duration_ms: episode.durationMs,
+      is_locked: episode.isLocked,
+      last_synced_at: new Date().toISOString(),
+    }));
+
+    if (upsertPayload.length > 0) {
       const { error } = await supabase
         .from('episodes')
-        .upsert({
-          drama_id: drama.id,
-          provider_slug: providerSlug,
-          provider_episode_id: episode.providerEpisodeId,
-          episode_no: episode.episodeNo,
-          chapter_id: episode.chapterId,
-          slug: episode.slug,
-          title: episode.title,
-          duration_ms: episode.durationMs,
-          is_locked: episode.isLocked,
-          last_synced_at: new Date().toISOString(),
-        }, {
+        .upsert(upsertPayload, {
           onConflict: 'drama_id,episode_no',
         });
 
       if (error) {
-        logger.error('sync_episode_failed', {
+        const requiresFallback = /no unique or exclusion constraint matching the ON CONFLICT specification/i.test(error.message);
+
+        logger.error('sync_episodes_bulk_failed', {
           provider: providerSlug,
           dramaId: providerDramaId,
-          episodeNo: episode.episodeNo,
           error: error.message,
+          requiresFallback,
         });
+
+        if (requiresFallback) {
+          logger.warn('sync_episodes_bulk_fallback_replace_started', {
+            provider: providerSlug,
+            dramaId: providerDramaId,
+            count: upsertPayload.length,
+          });
+
+          const { error: deleteError } = await supabase
+            .from('episodes')
+            .delete()
+            .eq('drama_id', drama.id)
+            .eq('provider_slug', providerSlug);
+
+          if (deleteError) {
+            logger.error('sync_episodes_bulk_fallback_delete_failed', {
+              provider: providerSlug,
+              dramaId: providerDramaId,
+              error: deleteError.message,
+            });
+          } else {
+            const { error: insertError } = await supabase
+              .from('episodes')
+              .insert(upsertPayload);
+
+            if (insertError) {
+              logger.error('sync_episodes_bulk_fallback_insert_failed', {
+                provider: providerSlug,
+                dramaId: providerDramaId,
+                error: insertError.message,
+              });
+            } else {
+              logger.info('sync_episodes_bulk_fallback_replace_completed', {
+                provider: providerSlug,
+                dramaId: providerDramaId,
+                count: upsertPayload.length,
+              });
+            }
+          }
+        }
       }
     }
 

@@ -15,7 +15,7 @@ export async function getPlaybackUrl(
   requestId: string
 ): Promise<PlaybackResponse> {
   const limiter = getRateLimiter();
-  
+
   const limitCheck = await limiter.checkBoth(providerSlug);
   if (!limitCheck.global.success || !limitCheck.provider.success) {
     throw new Error('RATE_LIMITED');
@@ -24,11 +24,20 @@ export async function getPlaybackUrl(
   const resolved = providerCatalog.resolveEndpoint(
     providerSlug,
     'playback',
-    { 
+    {
       id: providerDramaId,
+      code: providerDramaId,
+      bookId: providerDramaId,
+      dramaId: providerDramaId,
+      seriesId: providerDramaId,
+      playletId: providerDramaId,
+      vid: providerDramaId,
+      series_id: providerDramaId,
       episode: providerEpisodeId,
       chapterId: providerEpisodeId,
+      chapter: providerEpisodeId,
       ep: providerEpisodeId,
+      section_id: providerEpisodeId,
     }
   );
 

@@ -1,105 +1,328 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { Search, ArrowLeft } from 'lucide-react';
-import { searchDramas } from '@/lib/api-client';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  Search,
+  SlidersHorizontal,
+  Loader2,
+  ChevronUp,
+} from 'lucide-react';
+import { useSearch } from '@/hooks/useSearch';
+import {
+  FilterSidebar,
+  RecentSearches,
+  AutocompleteDropdown,
+  SearchResults,
+  SearchTabs,
+  EmptyState,
+  SortDropdown,
+  FilterChip,
+} from '@/app/components/search';
+import { PageHeader } from '@/app/components/layout';
 import type { DramaCard } from '@/lib/types';
 
+const popularTags = ['CEO', 'Balas Dendam', 'Pewaris', 'Vampir', 'Istri'];
+
 export default function SearchPage() {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<DramaCard[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
+  const router = useRouter();
+  const {
+    query,
+    filteredResults,
+    filters,
+    sort,
+    activeTab,
+    recentSearches,
+    suggestions,
+    isFilterOpen,
+    hasMore,
+    loading,
+    searched,
+    setQuery,
+    setSort,
+    setActiveTab,
+    setIsFilterOpen,
+    toggleProvider,
+    toggleGenre,
+    clearRecentSearches,
+    removeRecentSearch,
+    loadMore,
+    resetFilters,
+    search,
+  } = useSearch();
 
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (!query.trim()) return;
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<HTMLDivElement>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
-    setLoading(true);
-    setSearched(true);
+  // Handle scroll to show/hide scroll to top button
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 500);
+    };
 
-    try {
-      const data = await searchDramas(query);
-      setResults(data);
-    } catch (error) {
-      console.error('Search failed:', error);
-    } finally {
-      setLoading(false);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Intersection observer for infinite scroll
+  useEffect(() => {
+    if (!loadMoreRef.current || !hasMore || loading) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadMore]);
+
+  // Close autocomplete when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        autocompleteRef.current &&
+        !autocompleteRef.current.contains(event.target as Node) &&
+        !searchInputRef.current?.contains(event.target as Node)
+      ) {
+        setShowAutocomplete(false);
+      }
     }
-  }
 
-  const popularTags = ['CEO', 'Balas Dendam', 'Pewaris', 'Vampir', 'Istri'];
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSearch = useCallback(
+    async (e?: React.FormEvent, searchQuery?: string) => {
+      e?.preventDefault();
+      const q = searchQuery || query;
+      if (!q.trim()) return;
+
+      setShowAutocomplete(false);
+      await search(q);
+    },
+    [query, search]
+  );
+
+  const handleSelectRecent = useCallback(
+    (searchQuery: string) => {
+      setQuery(searchQuery);
+      handleSearch(undefined, searchQuery);
+    },
+    [setQuery, handleSearch]
+  );
+
+  const handleSelectSuggestion = useCallback(
+    (suggestion: string) => {
+      setQuery(suggestion);
+      handleSearch(undefined, suggestion);
+    },
+    [setQuery, handleSearch]
+  );
+
+  const handleSelectDrama = useCallback(
+    (drama: DramaCard) => {
+      router.push(`/dramas/${drama.id}`);
+    },
+    [router]
+  );
+
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const activeFilterCount = filters.providers.length + filters.genres.length;
+  const hasFilters = activeFilterCount > 0;
 
   return (
-    <div className="min-h-screen bg-slate-950 p-4">
-      <div className="flex items-center space-x-4 mb-6">
-        <Link href="/" className="text-white">
-          <ArrowLeft size={24} />
-        </Link>
-        <h1 className="text-xl font-black">Cari Drama</h1>
-      </div>
+    <div className="min-h-screen bg-slate-950">
+      {/* Header */}
+      <PageHeader
+        title="Cari Drama"
+        action={
+          <button
+            onClick={() => setIsFilterOpen(true)}
+            className={`p-2 rounded-lg transition-colors relative ${hasFilters
+              ? 'bg-red-600 text-white'
+              : 'text-slate-400 hover:bg-slate-900'
+              }`}
+            aria-label="Buka filter"
+          >
+            <SlidersHorizontal size={20} />
+            {hasFilters && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-500 text-black text-[10px] font-black rounded-full flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        }
+      />
 
-      <form onSubmit={handleSearch} className="mb-6">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-          <input
-            autoFocus
-            type="text"
-            placeholder="Cari drama, genre, atau provider..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-3.5 pl-12 pr-4 outline-none focus:ring-2 focus:ring-red-600/30 text-sm"
+      <main className="p-4 space-y-6">
+        {/* Search Input */}
+        <div ref={autocompleteRef} className="relative">
+          <form onSubmit={handleSearch}>
+            <div className="relative">
+              <Search
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+                size={18}
+              />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Cari drama, genre, atau provider..."
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setShowAutocomplete(true);
+                }}
+                onFocus={() => setShowAutocomplete(true)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-3.5 pl-12 pr-4 outline-none focus:ring-2 focus:ring-red-600/30 text-sm"
+              />
+              {loading && (
+                <Loader2
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 animate-spin"
+                  size={18}
+                />
+              )}
+            </div>
+          </form>
+
+          {/* Autocomplete Dropdown */}
+          <AutocompleteDropdown
+            query={query}
+            suggestions={suggestions}
+            results={filteredResults}
+            onSelect={handleSelectSuggestion}
+            onSelectDrama={handleSelectDrama}
+            isVisible={showAutocomplete && (suggestions.length > 0 || filteredResults.length > 0)}
           />
         </div>
-      </form>
 
-      {!searched && (
-        <div className="space-y-4">
-          <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">
-            Pencarian Populer
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {popularTags.map((tag) => (
-              <button
-                key={tag}
-                onClick={() => {
-                  setQuery(tag);
-                  setTimeout(() => handleSearch({ preventDefault: () => { } } as React.FormEvent), 0);
-                }}
-                className="px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-bold hover:bg-slate-800"
-              >
-                {tag}
-              </button>
-            ))}
+        {/* Recent Searches */}
+        {!searched && recentSearches.length > 0 && (
+          <RecentSearches
+            searches={recentSearches}
+            onSelect={handleSelectRecent}
+            onRemove={removeRecentSearch}
+            onClearAll={clearRecentSearches}
+          />
+        )}
+
+        {/* Popular Tags (only show before first search) */}
+        {!searched && (
+          <div className="space-y-3">
+            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">
+              Pencarian Populer
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {popularTags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => handleSelectRecent(tag)}
+                  className="px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors"
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {loading && (
-        <div className="mt-20 flex flex-col items-center justify-center space-y-3">
-          <div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-slate-500 font-bold uppercase">Mencari di Provider...</p>
-        </div>
-      )}
+        {/* Search Results Section */}
+        {searched && (
+          <div className="space-y-4">
+            {/* Tabs */}
+            <SearchTabs
+              activeTab={activeTab}
+              onChange={setActiveTab}
+              resultCount={filteredResults.length}
+            />
 
-      {!loading && searched && results.length > 0 && (
-        <div className="mt-8 grid grid-cols-2 gap-4">
-          {results.map((drama) => (
-            <Link key={drama.id} href={`/dramas/${drama.id}`} className="space-y-2">
-              <div className="aspect-[2/3] rounded-xl overflow-hidden bg-slate-900">
-                <img src={drama.coverUrl} className="w-full h-full object-cover" alt={drama.title} />
-              </div>
-              <h4 className="text-[11px] font-bold truncate">{drama.title}</h4>
-            </Link>
-          ))}
-        </div>
-      )}
+            {/* Results Header */}
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-slate-400">
+                <span className="font-bold text-white">{filteredResults.length}</span>{' '}
+                hasil untuk "{query}"
+              </p>
+              <SortDropdown value={sort} onChange={setSort} />
+            </div>
 
-      {!loading && searched && results.length === 0 && (
-        <div className="mt-20 text-center text-slate-500">
-          Tidak ada hasil untuk "{query}"
-        </div>
+            {/* Active Filter Chips */}
+            <FilterChip
+              filters={filters}
+              onRemoveProvider={toggleProvider}
+              onRemoveGenre={toggleGenre}
+              onClearAll={resetFilters}
+            />
+
+            {/* Results Grid */}
+            {filteredResults.length > 0 ? (
+              <>
+                <SearchResults results={filteredResults} />
+
+                {/* Load More */}
+                {hasMore && (
+                  <div ref={loadMoreRef} className="flex justify-center py-8">
+                    {loading ? (
+                      <div className="flex items-center space-x-2 text-slate-500">
+                        <Loader2 size={20} className="animate-spin" />
+                        <span className="text-sm font-medium">Memuat lebih...</span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={loadMore}
+                        className="px-6 py-3 bg-slate-900 border border-slate-800 rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors"
+                      >
+                        Muat Lebih
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              <EmptyState
+                query={query}
+                onResetFilters={hasFilters ? resetFilters : undefined}
+                hasFilters={hasFilters}
+              />
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* Filter Sidebar */}
+      <FilterSidebar
+        isOpen={isFilterOpen}
+        onClose={() => setIsFilterOpen(false)}
+        filters={filters}
+        onToggleProvider={toggleProvider}
+        onToggleGenre={toggleGenre}
+        onReset={resetFilters}
+        onApply={() => {
+          setIsFilterOpen(false);
+          if (searched) {
+            search();
+          }
+        }}
+      />
+
+      {/* Scroll to Top Button */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 p-3 bg-red-600 rounded-full shadow-lg hover:bg-red-700 transition-colors z-30"
+        >
+          <ChevronUp size={24} />
+        </button>
       )}
     </div>
   );

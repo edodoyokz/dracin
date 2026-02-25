@@ -1,4 +1,4 @@
-import type { DramaCard, DramaDetail, EpisodeItem, PlaybackResponse } from './types';
+import type { DramaCard, DramaDetail, EpisodeItem, PlaybackResponse, WatchProgress } from './types';
 
 const API_BASE = '/api/v1';
 
@@ -26,10 +26,20 @@ export async function getHomeDramas(): Promise<DramaCard[]> {
   return data || [];
 }
 
-export async function getDramaDetail(id: string): Promise<DramaDetail | null> {
-  const { data, error } = await fetchAPI<DramaDetail>(`${API_BASE}/dramas/${id}`);
+export interface DramaDetailWithRelated {
+  drama: DramaDetail;
+  related: DramaCard[];
+}
+
+export async function getDramaDetail(id: string): Promise<DramaDetailWithRelated | null> {
+  const { data, error } = await fetchAPI<DramaDetailWithRelated>(`${API_BASE}/dramas/${id}`);
   if (error) throw new Error(error);
   return data;
+}
+
+export async function getRelatedDramas(id: string): Promise<DramaCard[]> {
+  const result = await getDramaDetail(id);
+  return result?.related || [];
 }
 
 export async function getDramaEpisodes(id: string): Promise<EpisodeItem[]> {
@@ -82,4 +92,33 @@ export async function saveWatchProgress(
   } catch {
     return false;
   }
+}
+
+export interface WatchProgressForDrama {
+  episodeId: string;
+  episodeNo: number;
+  episodeTitle?: string;
+  progressSeconds: number;
+  durationMs: number;
+  coverUrl: string;
+  lastWatchedAt: string;
+}
+
+export async function getWatchProgressForDrama(
+  userId: string,
+  dramaId: string
+): Promise<WatchProgressForDrama | null> {
+  const { data, error } = await fetchAPI<WatchProgressForDrama>(
+    `${API_BASE}/watch/progress?userId=${userId}&dramaId=${dramaId}`
+  );
+  if (error) return null;
+  return data;
+}
+
+export async function getWatchedEpisodes(userId: string, dramaId: string): Promise<number[]> {
+  const { data, error } = await fetchAPI<number[]>(
+    `${API_BASE}/watch/progress/episodes?userId=${userId}&dramaId=${dramaId}`
+  );
+  if (error) return [];
+  return data || [];
 }

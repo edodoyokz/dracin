@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { upsertWatchProgress } from '@/lib/db/watch-history';
+import { upsertWatchProgress, getWatchProgressForDrama, getWatchedEpisodes } from '@/lib/db/watch-history';
 import { logger, generateRequestId } from '@/lib/observability/logger';
 import { validateRequestBody, watchProgressRequestSchema } from '@/lib/validation/schemas';
 import type { ApiResponse, WatchProgress } from '@/lib/types';
@@ -76,6 +76,79 @@ export async function POST(request: Request): Promise<NextResponse> {
       error: {
         code: 'INTERNAL_ERROR',
         message: 'Failed to save watch progress',
+      },
+    };
+
+    return NextResponse.json(response, { status: 500 });
+  }
+}
+
+// GET: Get watch progress for a specific drama
+export async function GET(request: Request): Promise<NextResponse> {
+  const requestId = generateRequestId();
+  const startTime = Date.now();
+
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get('userId');
+  const dramaId = searchParams.get('dramaId');
+
+  if (!userId || !dramaId) {
+    const response: ApiResponse<null> = {
+      data: null,
+      meta: { requestId, timestamp: new Date().toISOString() },
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'Missing userId or dramaId parameter',
+      },
+    };
+    return NextResponse.json(response, { status: 400 });
+  }
+
+  try {
+    const progress = await getWatchProgressForDrama(userId, dramaId);
+
+    if (!progress) {
+      const response: ApiResponse<null> = {
+        data: null,
+        meta: { requestId, timestamp: new Date().toISOString() },
+        error: null,
+      };
+      return NextResponse.json(response);
+    }
+
+    const response: ApiResponse<typeof progress> = {
+      data: progress,
+      meta: {
+        requestId,
+        timestamp: new Date().toISOString(),
+      },
+      error: null,
+    };
+
+    logger.info('watch_progress_fetched', {
+      requestId,
+      userId,
+      dramaId,
+      episodeNo: progress.episodeNo,
+      latencyMs: Date.now() - startTime,
+    });
+
+    return NextResponse.json(response);
+  } catch (error) {
+    logger.error('watch_progress_fetch_failed', {
+      requestId,
+      userId,
+      dramaId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      latencyMs: Date.now() - startTime,
+    });
+
+    const response: ApiResponse<null> = {
+      data: null,
+      meta: { requestId, timestamp: new Date().toISOString() },
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to fetch watch progress',
       },
     };
 
