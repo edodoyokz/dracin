@@ -51,7 +51,11 @@ interface GoodShortChapter {
 }
 
 interface GoodShortVideo {
-  videoUrl: string;
+  videoUrl?: string;
+  m3u8?: string;
+  playUrl?: string;
+  streamUrl?: string;
+  url?: string;
   expiresAt?: string;
 }
 
@@ -156,10 +160,23 @@ export class GoodShortAdapter extends BaseProviderAdapter {
   }
 
   mapPlayback(response: unknown): PlaybackResponse {
-    const video = response as GoodShortVideo;
+    const unwrapped = this.unwrapResponse(response) as Record<string, unknown>;
+
+    const streamUrl =
+      (typeof unwrapped.videoUrl === 'string' && unwrapped.videoUrl)
+      || (typeof unwrapped.m3u8 === 'string' && unwrapped.m3u8)
+      || (typeof unwrapped.playUrl === 'string' && unwrapped.playUrl)
+      || (typeof unwrapped.streamUrl === 'string' && unwrapped.streamUrl)
+      || (typeof unwrapped.url === 'string' && unwrapped.url)
+      || '';
+
+    const expiresAt =
+      (typeof unwrapped.expiresAt === 'string' && unwrapped.expiresAt)
+      || new Date(Date.now() + 2 * 60 * 1000).toISOString();
+
     return {
-      streamUrl: video.videoUrl,
-      expiresAt: video.expiresAt || new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+      streamUrl,
+      expiresAt,
     };
   }
 }
