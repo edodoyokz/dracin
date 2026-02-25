@@ -121,10 +121,10 @@ export class ReelShortAdapter extends BaseProviderAdapter {
       return [];
     }
     const chapters = response as ReelShortChapter[];
-    return chapters.map(ch => ({
+    return chapters.map((ch, idx) => ({
       episodeId: `${this.slug}:${ch.chapterId || ch.chapter_id || ''}`,
       providerEpisodeId: ch.chapterId || ch.chapter_id || '',
-      episodeNo: ch.sequence || ch.chapter_index || 0,
+      episodeNo: ch.sequence || ch.chapter_index || (idx + 1),
       title: ch.title,
       durationMs: 0,
       isLocked: false,
