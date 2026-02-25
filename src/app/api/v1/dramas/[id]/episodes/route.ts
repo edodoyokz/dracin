@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getEpisodesByDramaId, getDramaById, getDramaByProviderId } from '@/lib/db/dramas';
+import { getEpisodesWithFallback } from '@/lib/services/episode-sync';
 import { syncEpisodes } from '@/jobs/sync-episodes';
 import { logger, generateRequestId } from '@/lib/observability/logger';
 import { validatePathParams, dramaDetailPathSchema } from '@/lib/validation/schemas';
@@ -58,7 +59,7 @@ export async function GET(
       return NextResponse.json(response, { status: 404 });
     }
 
-    let episodes = await getEpisodesByDramaId(drama.id);
+    let episodes: EpisodeItem[] = [];
 
     const isEpisodeUsable = (episode: EpisodeItem): boolean => {
       const hasEpisodeNo = Number.isFinite(episode.episodeNo);
@@ -66,22 +67,31 @@ export async function GET(
       return hasEpisodeNo && hasProviderEpisodeRef;
     };
 
-    const usableCount = episodes.filter(isEpisodeUsable).length;
-    const hasCorruptedEpisodeRows = episodes.length > 0 && usableCount === 0;
+    // Try to get episodes from DB first
+    const dbEpisodes = await getEpisodesByDramaId(drama.id);
+    const usableCount = dbEpisodes.filter(isEpisodeUsable).length;
+    const hasCorruptedEpisodeRows = dbEpisodes.length > 0 && usableCount === 0;
 
-    // Auto-sync episodes if missing OR existing rows are fully corrupted (no usable episode mapping)
-    if (!episodes || episodes.length === 0 || hasCorruptedEpisodeRows) {
-      logger.info('episodes_sync_started', {
+    if (dbEpisodes.length > 0 && !hasCorruptedEpisodeRows) {
+      // Use DB episodes if available and valid
+      episodes = dbEpisodes;
+    } else {
+      // Use fallback to provider API with auto-sync
+      logger.info('episodes_fallback_to_provider', {
         requestId,
         requestedDramaId: id,
         dramaId: drama.id,
         provider: drama.providerSlug,
         providerDramaId: drama.providerDramaId,
-        reason: episodes.length === 0 ? 'empty' : 'corrupted_rows',
+        reason: dbEpisodes.length === 0 ? 'empty' : 'corrupted_rows',
       });
 
-      await syncEpisodes(drama.providerSlug, drama.providerDramaId);
-      episodes = await getEpisodesByDramaId(drama.id);
+      episodes = await getEpisodesWithFallback(
+        drama.id,
+        drama.providerSlug,
+        drama.providerDramaId,
+        requestId
+      );
     }
 
     const sanitizedEpisodes = episodes.filter(isEpisodeUsable);

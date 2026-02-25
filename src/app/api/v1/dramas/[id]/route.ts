@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDramaById, getDramaByProviderId, getRelatedDramas } from '@/lib/db/dramas';
+import { upsertDramaFromProvider } from '@/lib/services/drama-upsert';
+import { syncEpisodesFromProvider } from '@/lib/services/episode-sync';
 import { logger, generateRequestId } from '@/lib/observability/logger';
 import { validatePathParams, dramaDetailPathSchema } from '@/lib/validation/schemas';
 import type { ApiResponse, DramaDetail, DramaCard } from '@/lib/types';
@@ -39,13 +41,45 @@ export async function GET(
 
   try {
     let drama = await getDramaById(id);
+    let providerSlug: string | undefined;
+    let providerDramaId: string | undefined;
 
+    // Parse provider:dramaId format
     if (!drama && id.includes(':')) {
-      const [providerSlug, ...dramaIdParts] = id.split(':');
-      const providerDramaId = dramaIdParts.join(':');
+      const [slug, ...dramaIdParts] = id.split(':');
+      providerSlug = slug;
+      providerDramaId = dramaIdParts.join(':');
 
       if (providerSlug && providerDramaId) {
         drama = await getDramaByProviderId(providerSlug, providerDramaId);
+      }
+    }
+
+    // If not found in DB, try to fetch from provider API
+    if (!drama && providerSlug && providerDramaId) {
+      logger.info('drama_detail_fallback_to_provider', {
+        requestId,
+        provider: providerSlug,
+        providerDramaId,
+      });
+
+      const upsertResult = await upsertDramaFromProvider(
+        providerSlug,
+        providerDramaId,
+        requestId
+      );
+
+      if (upsertResult) {
+        // Re-fetch from DB after upsert
+        drama = await getDramaById(upsertResult.dramaId);
+
+        // Sync episodes
+        await syncEpisodesFromProvider(
+          upsertResult.dramaId,
+          providerSlug,
+          providerDramaId,
+          requestId
+        );
       }
     }
 

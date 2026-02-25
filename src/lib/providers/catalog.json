@@ -616,15 +616,6 @@
       "status": "active"
     },
     {
-      "vip": "VIP4",
-      "provider": "DramaBox",
-      "slug": "dramabox",
-      "baseUrl": "https://captain.sapimu.au/dramabox",
-      "endpointCount": 0,
-      "endpoints": [],
-      "status": "maintenance"
-    },
-    {
       "vip": "VIP5",
       "provider": "CashDrama",
       "slug": "cashdrama",

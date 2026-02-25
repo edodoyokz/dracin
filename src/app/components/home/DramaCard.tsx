@@ -6,12 +6,13 @@ import type { DramaCard as DramaCardType, DramaWithRank, ContinueWatchingItem } 
 
 type DramaCardProps = {
     drama: DramaCardType | DramaWithRank;
-    variant?: 'default' | 'compact' | 'wide';
+    variant?: 'default' | 'compact' | 'wide' | 'large';
     showProviderBadge?: boolean;
     showRank?: boolean;
     showProgress?: number;
     showNewBadge?: boolean;
     showPlayOverlay?: boolean;
+    showRating?: boolean;
     onClick?: () => void;
 };
 
@@ -23,12 +24,17 @@ export function DramaCard({
     showProgress,
     showNewBadge = false,
     showPlayOverlay = false,
+    showRating = false,
     onClick,
 }: DramaCardProps) {
     const rank = (drama as DramaWithRank).rank;
     const isTopThree = rank && rank <= 3;
 
-    const widthClass = variant === 'compact' ? 'w-28' : variant === 'wide' ? 'w-40' : 'w-32';
+    const widthClass = 
+        variant === 'compact' ? 'w-28' : 
+        variant === 'wide' ? 'w-40' : 
+        variant === 'large' ? 'w-40 sm:w-44' :
+        'w-36';
 
     return (
         <Link
@@ -75,9 +81,17 @@ export function DramaCard({
                 {/* Provider Badge */}
                 {showProviderBadge && (
                     <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur px-2 py-0.5 rounded border border-red-500/40">
-                        <span className="text-[10px] text-red-400 font-bold tracking-wide">
+                        <span className="text-[10px] text-red-400 font-bold tracking-wide truncate max-w-[80px]">
                             {drama.providerName}
                         </span>
+                    </div>
+                )}
+
+                {/* Rating Badge */}
+                {showRating && drama.rating && (
+                    <div className="absolute top-1.5 left-1.5 bg-amber-500/90 backdrop-blur px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                        <span className="text-[10px] text-white font-bold">★</span>
+                        <span className="text-[10px] text-white font-bold">{drama.rating.toFixed(1)}</span>
                     </div>
                 )}
 

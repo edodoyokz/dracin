@@ -374,7 +374,6 @@ export default function PlayPage() {
               <video
                 ref={videoRef}
                 autoPlay
-                muted
                 playsInline
                 className="w-full h-full object-contain"
                 onError={handleVideoError}

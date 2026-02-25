@@ -7,13 +7,13 @@ import { Play, Search, User, Crown } from 'lucide-react';
 import { useHomeData } from '@/hooks/useHome';
 import {
   HeroBanner,
-  ProviderFilterBar,
+  EnhancedProviderFilter,
   ContinueWatchingSection,
   HorizontalDramaSection,
-  ProviderSections,
   NewReleasesSection,
   GenreGridSection,
 } from '@/app/components/home';
+import { LazyProviderSection } from '@/app/components/home/LazyProviderSection';
 import type { HomeResponseData } from '@/lib/types';
 
 export default function HomePage() {
@@ -48,7 +48,7 @@ export default function HomePage() {
 
       {/* Provider Filter Bar */}
       {data?.providers && (
-        <ProviderFilterBar
+        <EnhancedProviderFilter
           providers={data.providers}
           activeProvider={activeProvider}
           onProviderChange={setActiveProvider}
@@ -136,12 +136,18 @@ export default function HomePage() {
               />
             )}
 
-            {/* Provider Sections */}
+            {/* Provider Sections - Lazy Loaded */}
             {filteredData.providerSections.length > 0 && (
-              <ProviderSections
-                sections={filteredData.providerSections}
-                expandedCount={3}
-              />
+              <div className="provider-sections">
+                {filteredData.providerSections.map((section, index) => (
+                  <LazyProviderSection
+                    key={section.provider.slug}
+                    section={section}
+                    index={index}
+                    onViewAll={(slug) => router.push(`/providers/${slug}`)}
+                  />
+                ))}
+              </div>
             )}
 
             {/* New Releases */}

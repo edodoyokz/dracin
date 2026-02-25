@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
     Play,
     Pause,
@@ -93,14 +93,18 @@ export function CustomVideoControls({
     };
 
     // Global mouse up handler for drag release
-    const handleGlobalMouseUp = useCallback(() => {
-        setIsDragging(false);
-    }, []);
+    useEffect(() => {
+        if (!isDragging) return;
 
-    // Attach global mouse up listener
-    if (typeof window !== 'undefined' && isDragging) {
+        const handleGlobalMouseUp = () => {
+            setIsDragging(false);
+        };
+
         window.addEventListener('mouseup', handleGlobalMouseUp, { once: true });
-    }
+        return () => {
+            window.removeEventListener('mouseup', handleGlobalMouseUp);
+        };
+    }, [isDragging]);
 
     // Handle volume bar click
     const handleVolumeClick = (e: React.MouseEvent<HTMLDivElement>) => {

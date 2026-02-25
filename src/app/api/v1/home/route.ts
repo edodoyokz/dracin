@@ -12,6 +12,7 @@ import { getSupabaseClient } from '@/lib/db/client';
 import { logger, generateRequestId } from '@/lib/observability/logger';
 import { preflightEnvCheck } from '@/lib/config/env';
 import { getCacheManager } from '@/lib/cache/redis';
+import { fetchHomeFromProviders, getAllProviderInfo } from '@/lib/services/provider-aggregator';
 import type { ApiResponse, HomeResponseData, NewReleaseGroup, ContinueWatchingItem, GenreData, DramaCard } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -73,6 +74,13 @@ export async function GET(request: Request): Promise<NextResponse> {
       return NextResponse.json(response);
     }
 
+    // Fetch provider content from all 41 active providers
+    const providerResultsPromise = fetchHomeFromProviders({
+      maxProviders: 41,
+      shuffle: true,
+      requestId,
+    });
+
     // Fetch all sections in parallel
     const [
       featured,
@@ -83,6 +91,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       forYou,
       continueWatching,
       genres,
+      providerResults,
     ] = await Promise.all([
       getCachedFeatured(),
       getCachedTrending(),
@@ -92,10 +101,20 @@ export async function GET(request: Request): Promise<NextResponse> {
       getForYouDramas(10),
       userId ? getContinueWatching(userId) : Promise.resolve(null),
       getGenres(),
+      providerResultsPromise,
     ]);
+
+    // Build provider sections from fetched data
+    const dynamicProviderSections = buildProviderSectionsFromResults(providerResults);
 
     // Group new releases by time period
     const newReleases = groupNewReleases(newReleasesData);
+
+    // Merge static and dynamic provider sections
+    const mergedProviderSections = [...providerSections, ...dynamicProviderSections];
+
+    // Get all provider info (41 active providers)
+    const allProviders = getAllProviderInfo();
 
     const homeData: HomeResponseData = {
       featured,
@@ -103,9 +122,9 @@ export async function GET(request: Request): Promise<NextResponse> {
       forYou,
       trending,
       newReleases,
-      providerSections,
+      providerSections: mergedProviderSections,
       genres,
-      providers,
+      providers: allProviders,
     };
 
     // Cache the response
@@ -357,4 +376,27 @@ function getDefaultGenres(): GenreData[] {
     { id: 'thriller', name: 'Thriller', posterUrls: [], dramaCount: 0, color: '#374151' },
     { id: 'fantasy', name: 'Fantasy', posterUrls: [], dramaCount: 0, color: '#a78bfa' },
   ];
+}
+
+// Build provider sections from aggregation results
+function buildProviderSectionsFromResults(
+  results: Awaited<ReturnType<typeof fetchHomeFromProviders>>
+): { provider: { slug: string; name: string; contentCount: number }; dramas: DramaCard[]; totalCount: number }[] {
+  const sections: { provider: { slug: string; name: string; contentCount: number }; dramas: DramaCard[]; totalCount: number }[] = [];
+
+  for (const result of results) {
+    if (result.success && result.dramas.length > 0) {
+      sections.push({
+        provider: {
+          slug: result.provider,
+          name: result.providerName,
+          contentCount: result.dramas.length,
+        },
+        dramas: result.dramas.slice(0, 10), // Limit to 10 per section
+        totalCount: result.dramas.length,
+      });
+    }
+  }
+
+  return sections;
 }

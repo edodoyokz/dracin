@@ -331,28 +331,39 @@ export function usePlayback({ videoRef, onProgress, onEnded, onNextEpisode }: Us
         const video = videoRef.current;
         if (!video) return;
 
-        video.addEventListener('timeupdate', handleTimeUpdate);
-        video.addEventListener('play', handlePlay);
-        video.addEventListener('pause', handlePause);
-        video.addEventListener('volumechange', handleVolumeChange);
-        video.addEventListener('loadedmetadata', handleLoadedMetadata);
-        video.addEventListener('waiting', handleWaiting);
-        video.addEventListener('canplay', handleCanPlay);
-        video.addEventListener('ended', handleEnded);
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        // Use stable references for event handlers
+        const onTimeUpdate = () => handleTimeUpdate();
+        const onPlay = () => handlePlay();
+        const onPause = () => handlePause();
+        const onVolumeChange = () => handleVolumeChange();
+        const onLoadedMetadata = () => handleLoadedMetadata();
+        const onWaiting = () => handleWaiting();
+        const onCanPlay = () => handleCanPlay();
+        const onEnded = () => handleEnded();
+        const onFullscreenChange = () => handleFullscreenChange();
+
+        video.addEventListener('timeupdate', onTimeUpdate);
+        video.addEventListener('play', onPlay);
+        video.addEventListener('pause', onPause);
+        video.addEventListener('volumechange', onVolumeChange);
+        video.addEventListener('loadedmetadata', onLoadedMetadata);
+        video.addEventListener('waiting', onWaiting);
+        video.addEventListener('canplay', onCanPlay);
+        video.addEventListener('ended', onEnded);
+        document.addEventListener('fullscreenchange', onFullscreenChange);
 
         return () => {
-            video.removeEventListener('timeupdate', handleTimeUpdate);
-            video.removeEventListener('play', handlePlay);
-            video.removeEventListener('pause', handlePause);
-            video.removeEventListener('volumechange', handleVolumeChange);
-            video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-            video.removeEventListener('waiting', handleWaiting);
-            video.removeEventListener('canplay', handleCanPlay);
-            video.removeEventListener('ended', handleEnded);
-            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            video.removeEventListener('timeupdate', onTimeUpdate);
+            video.removeEventListener('play', onPlay);
+            video.removeEventListener('pause', onPause);
+            video.removeEventListener('volumechange', onVolumeChange);
+            video.removeEventListener('loadedmetadata', onLoadedMetadata);
+            video.removeEventListener('waiting', onWaiting);
+            video.removeEventListener('canplay', onCanPlay);
+            video.removeEventListener('ended', onEnded);
+            document.removeEventListener('fullscreenchange', onFullscreenChange);
         };
-    }, [videoRef, handleTimeUpdate, handlePlay, handlePause, handleVolumeChange, handleLoadedMetadata, handleWaiting, handleCanPlay, handleEnded, handleFullscreenChange]);
+    }, [videoRef]);
 
     // Cleanup
     useEffect(() => {
@@ -380,16 +391,11 @@ export function usePlayback({ videoRef, onProgress, onEnded, onNextEpisode }: Us
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     }, []);
 
-    // Destructure ui without showControls to avoid conflict
-    const { showControls: showControlsState, ...restUI } = ui;
-
     return {
         // State from playback
         ...playback,
-        // State from ui (without showControls)
-        ...restUI,
-        // showControls boolean state
-        showControls: showControlsState,
+        // State from ui
+        ...ui,
 
         // Actions
         togglePlay,

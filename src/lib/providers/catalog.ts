@@ -64,7 +64,7 @@ class ProviderCatalog {
     const endpoints = provider.endpoints || [];
     const paths = endpoints.map(e => e.path);
     const hasSearch = paths.some(p => /search/i.test(p));
-    const hasHome = paths.some(p => /\/(home|foryou|feed|popular)/i.test(p));
+    const hasHome = paths.some(p => /\/(home|foryou|feed|popular|ranking|rank|browse|discover|list|recommend)/i.test(p));
     const hasEpisodes = paths.some(p => /episodes?/i.test(p));
     const hasPlay = paths.some(p => /\/(play|stream|video)/i.test(p));
     const hasSubtitle = paths.some(p => /subtitle/i.test(p));
@@ -155,7 +155,7 @@ class ProviderCatalog {
   private getIntentPatterns(intent: Intent): Array<{ method?: string; regex: RegExp }> {
     const homePattern = /\/(foryou|for-you|home|homepage|feed)/i;
     const tabsPattern = /\/(tabs|browsing)/i;
-    const popularPattern = /\/(popular|hot|hot-rank|dramas)$/i;
+    const popularPattern = /\/(popular|hot|hot-rank|ranking|rank|browse|discover|list|recommend|dramas)$/i;
     const searchPattern = /search/i;
     const detailDramaPattern = new RegExp('/(drama|dramas|series|book)/:', 'i');
     const detailInfoPattern = new RegExp('/(detail|info)/:', 'i');
@@ -163,7 +163,7 @@ class ProviderCatalog {
     const bookEpisodesPattern = new RegExp('/book/.*/episodes', 'i');
     const playPattern = /\/(play|stream)/i;
     const videoPattern = /\/video/i;
-    const epPlayPattern = new RegExp('/(episode|episodes)/.*/(?:play|video)', 'i');
+    const epPlayPattern = /\/(episode|episodes)\/[^/]+/i;
     const subtitlePattern = /subtitle/i;
     const unlockPattern = /unlock/i;
 

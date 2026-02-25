@@ -175,5 +175,14 @@ export async function getPlaybackUrl(
     throw new Error('ADAPTER_NOT_FOUND');
   }
 
-  return adapter.mapPlayback(response.data);
+  try {
+    return adapter.mapPlayback(response.data);
+  } catch (error) {
+    logger.error('playback_map_failed', {
+      requestId,
+      provider: providerSlug,
+      error: error instanceof Error ? error.message : 'Unknown',
+    });
+    throw new Error('PLAYBACK_MAP_FAILED');
+  }
 }
