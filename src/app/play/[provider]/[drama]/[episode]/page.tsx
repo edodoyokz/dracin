@@ -9,7 +9,8 @@ import {
   Bookmark,
   List,
   ArrowLeft,
-  SkipForward
+  SkipForward,
+  Play
 } from 'lucide-react';
 import { getPlaybackUrl, saveWatchProgress, getDramaEpisodes, getDramaDetail } from '@/lib/api-client';
 import { usePlayback } from '@/hooks/usePlayback';
