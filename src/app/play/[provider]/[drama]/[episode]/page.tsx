@@ -34,6 +34,7 @@ export default function PlayPage() {
   const episodeNo = parseInt(params.episode as string, 10);
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<{ destroy: () => void } | null>(null);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -159,6 +160,88 @@ export default function PlayPage() {
     };
   }, [provider, dramaId, episodeNo]);
 
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !streamUrl) return;
+
+    let mounted = true;
+
+    const cleanupCurrentSource = () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    };
+
+    const setupSource = async () => {
+      cleanupCurrentSource();
+
+      const isHlsStream = /\.m3u8(\?|$)/i.test(streamUrl);
+      if (!isHlsStream) {
+        video.src = streamUrl;
+        return;
+      }
+
+      const canPlayNativeHls =
+        video.canPlayType('application/vnd.apple.mpegurl') !== '' ||
+        video.canPlayType('application/x-mpegURL') !== '';
+
+      if (canPlayNativeHls) {
+        video.src = streamUrl;
+        return;
+      }
+
+      try {
+        const { default: Hls } = await import('hls.js');
+        if (!mounted) return;
+
+        if (!Hls.isSupported()) {
+          setError('Browser tidak mendukung format HLS untuk video ini');
+          return;
+        }
+
+        const hls = new Hls({
+          enableWorker: true,
+        });
+
+        hlsRef.current = hls;
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.ERROR, (_event: unknown, data: { fatal?: boolean; type?: string }) => {
+          if (!data?.fatal) return;
+
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+            hls.startLoad();
+            return;
+          }
+
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            hls.recoverMediaError();
+            return;
+          }
+
+          setError('Gagal memuat stream video HLS');
+          hls.destroy();
+          hlsRef.current = null;
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Gagal memuat engine HLS');
+      }
+    };
+
+    setupSource();
+
+    return () => {
+      mounted = false;
+      cleanupCurrentSource();
+    };
+  }, [streamUrl]);
+
   // Handle next episode
   function handleNextEpisode() {
     const currentIndex = episodes.findIndex(ep => ep.episodeNo === episodeNo);
@@ -257,7 +340,6 @@ export default function PlayPage() {
               {/* Video Element */}
               <video
                 ref={videoRef}
-                src={streamUrl}
                 autoPlay
                 muted
                 playsInline
