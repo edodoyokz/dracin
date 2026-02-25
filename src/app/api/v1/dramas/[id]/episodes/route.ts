@@ -60,28 +60,51 @@ export async function GET(
 
     let episodes = await getEpisodesByDramaId(drama.id);
 
-    // Auto-sync episodes if they are missing
-    if (!episodes || episodes.length === 0) {
+    const isEpisodeUsable = (episode: EpisodeItem): boolean => {
+      const hasEpisodeNo = Number.isFinite(episode.episodeNo) && episode.episodeNo > 0;
+      const hasProviderEpisodeRef = Boolean(episode.chapterId || episode.providerEpisodeId);
+      return hasEpisodeNo && hasProviderEpisodeRef;
+    };
+
+    const usableCount = episodes.filter(isEpisodeUsable).length;
+    const hasCorruptedEpisodeRows = episodes.length > 0 && usableCount === 0;
+
+    // Auto-sync episodes if missing OR existing rows are fully corrupted (no usable episode mapping)
+    if (!episodes || episodes.length === 0 || hasCorruptedEpisodeRows) {
       logger.info('episodes_sync_started', {
         requestId,
         requestedDramaId: id,
         dramaId: drama.id,
         provider: drama.providerSlug,
         providerDramaId: drama.providerDramaId,
+        reason: episodes.length === 0 ? 'empty' : 'corrupted_rows',
       });
+
       await syncEpisodes(drama.providerSlug, drama.providerDramaId);
       episodes = await getEpisodesByDramaId(drama.id);
     }
 
+    const sanitizedEpisodes = episodes.filter(isEpisodeUsable);
+
+    if (sanitizedEpisodes.length !== episodes.length) {
+      logger.warn('episodes_filtered_invalid_rows', {
+        requestId,
+        requestedDramaId: id,
+        dramaId: drama.id,
+        beforeCount: episodes.length,
+        afterCount: sanitizedEpisodes.length,
+      });
+    }
+
     const response: ApiResponse<EpisodeItem[]> = {
-      data: episodes,
+      data: sanitizedEpisodes,
       meta: {
         requestId,
         timestamp: new Date().toISOString(),
         pagination: {
           page: 1,
-          pageSize: episodes.length,
-          total: episodes.length,
+          pageSize: sanitizedEpisodes.length,
+          total: sanitizedEpisodes.length,
         },
       },
       error: null,
@@ -91,7 +114,7 @@ export async function GET(
       requestId,
       requestedDramaId: id,
       dramaId: drama.id,
-      count: episodes.length,
+      count: sanitizedEpisodes.length,
       latencyMs: Date.now() - startTime,
     });
 

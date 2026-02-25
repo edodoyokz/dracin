@@ -32,7 +32,29 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.json(response, { status: 400 });
   }
 
-  const { provider, drama: dramaId, episode: episodeId, userId } = validation.data;
+  const { provider, drama: dramaId, episode: rawEpisodeId, userId } = validation.data;
+  const episodeId = rawEpisodeId.trim();
+
+  const invalidEpisodeTokens = new Set(['', 'nan', 'undefined', 'null']);
+  if (invalidEpisodeTokens.has(episodeId.toLowerCase())) {
+    logger.warn('playback_invalid_episode_param', {
+      requestId,
+      provider,
+      dramaId,
+      rawEpisodeId,
+    });
+
+    const response: ApiResponse<null> = {
+      data: null,
+      meta: { requestId, timestamp: new Date().toISOString() },
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid episode identifier',
+      },
+    };
+
+    return NextResponse.json(response, { status: 400 });
+  }
 
   try {
     let resolvedEpisodeId = episodeId;
