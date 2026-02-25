@@ -19,6 +19,14 @@ export async function POST(request: Request): Promise<NextResponse> {
   const validation = await validateRequestBody(request, watchProgressRequestSchema);
 
   if (!validation.success) {
+    logger.warn('watch_progress_validation_failed', {
+      requestId,
+      errorCode: validation.error.code,
+      message: validation.error.message,
+      details: validation.error.details,
+      latencyMs: Date.now() - startTime,
+    });
+
     const response: ApiResponse<null> = {
       data: null,
       meta: { requestId, timestamp: new Date().toISOString() },

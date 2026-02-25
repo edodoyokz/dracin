@@ -195,8 +195,15 @@ export const progressSecondsSchema = z.number()
  * If resolution fails, the progress is still saved with episode_id as NULL.
  */
 export const watchProgressRequestSchema = z.object({
-    userId: uuidSchema,
-    dramaId: uuidSchema,
+    userId: z.string()
+        .min(1, 'User ID is required')
+        .max(100, 'User ID too long')
+        .refine(val => val === 'guest' || z.string().uuid().safeParse(val).success, {
+            message: 'User ID must be a valid UUID or "guest"',
+        }),
+    dramaId: z.string()
+        .min(1, 'Drama ID is required')
+        .max(200, 'Drama ID too long'),
     episodeId: z.string()
         .min(1, 'Episode ID is required')
         .max(200, 'Episode ID too long')

@@ -9,6 +9,54 @@ import type { ApiResponse, PlaybackResponse } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
+async function hasUnsupportedOfflineKeyStream(
+  streamUrl: string,
+  provider: string,
+  requestId: string,
+): Promise<boolean> {
+  if (!streamUrl || !/\.m3u8(\?|$)/i.test(streamUrl)) {
+    return false;
+  }
+
+  try {
+    const manifestResponse = await fetch(streamUrl, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+
+    if (!manifestResponse.ok) {
+      logger.warn('playback_manifest_probe_failed', {
+        requestId,
+        provider,
+        streamUrl,
+        status: manifestResponse.status,
+      });
+      return false;
+    }
+
+    const manifest = await manifestResponse.text();
+    const hasOfflineKey = /URI=["']local:\/\/offline-key/i.test(manifest) || manifest.includes('local://offline-key');
+
+    if (hasOfflineKey) {
+      logger.warn('playback_manifest_offline_key_detected', {
+        requestId,
+        provider,
+        streamUrl,
+      });
+    }
+
+    return hasOfflineKey;
+  } catch (error) {
+    logger.warn('playback_manifest_probe_error', {
+      requestId,
+      provider,
+      streamUrl,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    return false;
+  }
+}
+
 // Handle OPTIONS for CORS preflight
 export async function OPTIONS(): Promise<NextResponse> {
   return new NextResponse(null, { status: 204 });
@@ -84,6 +132,21 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     const cached = await cache.get<PlaybackResponse>(cacheKey);
     if (cached) {
+      if (await hasUnsupportedOfflineKeyStream(cached.streamUrl, provider, requestId)) {
+        await cache.delete(cacheKey);
+
+        const blockedResponse: ApiResponse<null> = {
+          data: null,
+          meta: { requestId, timestamp: new Date().toISOString(), cache: 'hit' },
+          error: {
+            code: 'PROVIDER_UNAVAILABLE',
+            message: 'Encrypted provider stream is not supported in web playback',
+          },
+        };
+
+        return NextResponse.json(blockedResponse, { status: 502 });
+      }
+
       logger.info('playback_cache_hit', { requestId, provider, dramaId, episodeId: resolvedEpisodeId });
 
       const response: ApiResponse<PlaybackResponse> = {
@@ -121,6 +184,19 @@ export async function GET(request: Request): Promise<NextResponse> {
     logger.info('playback_entitlement_allowed', { requestId, userId, dramaId });
 
     const playback = await getPlaybackUrl(provider, dramaId, resolvedEpisodeId, requestId);
+
+    if (await hasUnsupportedOfflineKeyStream(playback.streamUrl, provider, requestId)) {
+      const blockedResponse: ApiResponse<null> = {
+        data: null,
+        meta: { requestId, timestamp: new Date().toISOString(), cache: 'miss' },
+        error: {
+          code: 'PROVIDER_UNAVAILABLE',
+          message: 'Encrypted provider stream is not supported in web playback',
+        },
+      };
+
+      return NextResponse.json(blockedResponse, { status: 502 });
+    }
 
     await cache.set(cacheKey, playback, CACHE_TTL.PLAYBACK);
 

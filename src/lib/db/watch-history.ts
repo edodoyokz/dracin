@@ -89,24 +89,75 @@ export async function upsertWatchProgress(
 ): Promise<void> {
   const supabase = getSupabaseClient();
 
+  // Current schema requires watch_history.user_id as UUID; guest/non-UUID progress is accepted as no-op
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(entry.userId)) {
+    return;
+  }
+
+  // Resolve provider-scoped drama id (e.g. "goodshort:31001143495") to DB uuid when possible
+  let resolvedDramaId = entry.dramaId;
+  if (!uuidPattern.test(resolvedDramaId)) {
+    const [providerSlug, providerDramaId] = resolvedDramaId.split(':');
+    if (providerSlug && providerDramaId) {
+      const { data: dramaRow } = await supabase
+        .from('dramas')
+        .select('id')
+        .eq('provider_slug', providerSlug)
+        .eq('provider_drama_id', providerDramaId)
+        .single();
+
+      if (dramaRow?.id) {
+        resolvedDramaId = dramaRow.id;
+      } else {
+        // Cannot persist when drama FK is unresolved in current schema
+        return;
+      }
+    } else {
+      // Unsupported drama id format for current schema; skip persistence safely
+      return;
+    }
+  }
+
   // Resolve episode ID to UUID if possible
-  const resolvedEpisodeId = await resolveEpisodeId(entry.dramaId, entry.episodeId);
+  const resolvedEpisodeId = await resolveEpisodeId(resolvedDramaId, entry.episodeId);
 
-  const { error } = await supabase
+  const payload = {
+    user_id: entry.userId,
+    drama_id: resolvedDramaId,
+    episode_id: resolvedEpisodeId, // null if episode not found
+    progress_seconds: entry.progressSeconds,
+    is_completed: entry.isCompleted,
+    last_watched_at: new Date().toISOString(),
+  };
+
+  // Try update-first strategy to avoid fragile ON CONFLICT assumptions across environments
+  let updateQuery = supabase
     .from('watch_history')
-    .upsert({
-      user_id: entry.userId,
-      drama_id: entry.dramaId,
-      episode_id: resolvedEpisodeId, // null if episode not found
-      progress_seconds: entry.progressSeconds,
-      is_completed: entry.isCompleted,
-      last_watched_at: new Date().toISOString(),
-    }, {
-      onConflict: 'user_id,drama_id,episode_id',
-    });
+    .update(payload)
+    .eq('user_id', entry.userId)
+    .eq('drama_id', resolvedDramaId);
 
-  if (error) {
-    throw new Error(`Failed to save watch progress: ${error.message}`);
+  updateQuery = resolvedEpisodeId
+    ? updateQuery.eq('episode_id', resolvedEpisodeId)
+    : updateQuery.is('episode_id', null);
+
+  const { data: updatedRows, error: updateError } = await updateQuery.select('id').limit(1);
+
+  if (updateError) {
+    throw new Error(`Failed to save watch progress: ${updateError.message}`);
+  }
+
+  if (updatedRows && updatedRows.length > 0) {
+    return;
+  }
+
+  const { error: insertError } = await supabase
+    .from('watch_history')
+    .insert(payload);
+
+  if (insertError) {
+    throw new Error(`Failed to save watch progress: ${insertError.message}`);
   }
 }
 
