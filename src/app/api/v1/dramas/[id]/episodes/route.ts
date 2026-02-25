@@ -61,7 +61,7 @@ export async function GET(
     let episodes = await getEpisodesByDramaId(drama.id);
 
     const isEpisodeUsable = (episode: EpisodeItem): boolean => {
-      const hasEpisodeNo = Number.isFinite(episode.episodeNo) && episode.episodeNo > 0;
+      const hasEpisodeNo = Number.isFinite(episode.episodeNo);
       const hasProviderEpisodeRef = Boolean(episode.chapterId || episode.providerEpisodeId);
       return hasEpisodeNo && hasProviderEpisodeRef;
     };
