@@ -1,5 +1,5 @@
 import { getSupabaseClient } from './client';
-import type { DramaCard, DramaDetail, EpisodeItem } from '../types';
+import type { DramaCard, DramaDetail, DramaWithRank, EpisodeItem, FeaturedDrama, ProviderInfo, ProviderSectionData } from '../types';
 
 export interface DbDrama {
   id: string;
@@ -237,10 +237,6 @@ export async function getEpisodesWithThumbnails(dramaId: string): Promise<Episod
   return (data as DbEpisode[]).map(mapDbEpisodeToItem);
 }
 
-// Homepage Redesign Queries (Phase 1)
-
-import type { FeaturedDrama, DramaWithRank, ProviderSectionData, GenreData, ProviderInfo } from '../types';
-
 export async function getFeaturedDramas(limit: number = 5): Promise<FeaturedDrama[]> {
   const supabase = getSupabaseClient();
 
@@ -349,33 +345,35 @@ export async function getProviderSections(): Promise<ProviderSectionData[]> {
   const providers = await getTopProviders(6);
   const supabase = getSupabaseClient();
 
-  const sections: ProviderSectionData[] = [];
+  const sectionResults = await Promise.all(
+    providers.map(async (provider) => {
+      const { data: dramas, error } = await supabase
+        .from('dramas')
+        .select(`
+          *,
+          providers!inner(name)
+        `)
+        .eq('provider_slug', provider.slug)
+        .order('popularity_score', { ascending: false })
+        .limit(10);
 
-  for (const provider of providers) {
-    const { data: dramas, error } = await supabase
-      .from('dramas')
-      .select(`
-        *,
-        providers!inner(name)
-      `)
-      .eq('provider_slug', provider.slug)
-      .order('popularity_score', { ascending: false })
-      .limit(10);
+      if (error) {
+        return null;
+      }
 
-    if (error) continue;
+      return {
+        provider: {
+          slug: provider.slug,
+          name: provider.name,
+          contentCount: provider.contentCount,
+        },
+        dramas: (dramas as DbDrama[]).map(mapDbDramaToCard),
+        totalCount: provider.contentCount,
+      } satisfies ProviderSectionData;
+    })
+  );
 
-    sections.push({
-      provider: {
-        slug: provider.slug,
-        name: provider.name,
-        contentCount: provider.contentCount,
-      },
-      dramas: (dramas as DbDrama[]).map(mapDbDramaToCard),
-      totalCount: provider.contentCount,
-    });
-  }
-
-  return sections;
+  return sectionResults.filter((section): section is ProviderSectionData => section !== null);
 }
 
 export async function getAllProviders(): Promise<ProviderInfo[]> {
@@ -396,4 +394,138 @@ export async function getAllProviders(): Promise<ProviderInfo[]> {
     name: provider.name,
     contentCount: 0,
   }));
+}
+
+export async function getTopProvidersByContent(limit: number = 10): Promise<ProviderInfo[]> {
+  const supabase = getSupabaseClient();
+
+  const { data: providersData, error: providersError } = await supabase
+    .from('providers')
+    .select('slug, name')
+    .eq('status', 'active');
+
+  if (providersError) {
+    throw new Error(`Failed to fetch providers: ${providersError.message}`);
+  }
+
+  const { data: counts, error: countError } = await supabase
+    .from('dramas')
+    .select('provider_slug');
+
+  if (countError) {
+    throw new Error(`Failed to fetch provider counts: ${countError.message}`);
+  }
+
+  const countMap = new Map<string, number>();
+  (counts || []).forEach((row) => {
+    countMap.set(row.provider_slug, (countMap.get(row.provider_slug) || 0) + 1);
+  });
+
+  return (providersData || [])
+    .map((provider) => ({
+      slug: provider.slug,
+      name: provider.name,
+      contentCount: countMap.get(provider.slug) || 0,
+    }))
+    .sort((a, b) => b.contentCount - a.contentCount || a.name.localeCompare(b.name))
+    .slice(0, limit);
+}
+
+export async function getForYouDramas(limit: number = 10): Promise<DramaCard[]> {
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+    .from('dramas')
+    .select(`
+      *,
+      providers!inner(name)
+    `)
+    .eq('providers.status', 'active')
+    .order('created_at', { ascending: false })
+    .order('popularity_score', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to fetch for-you dramas: ${error.message}`);
+  }
+
+  return (data as DbDrama[]).map(mapDbDramaToCard);
+}
+
+export async function getPaginatedTrendingDramas(page: number, limit: number): Promise<{ dramas: DramaWithRank[]; total: number }> {
+  const supabase = getSupabaseClient();
+  const from = (page - 1) * limit;
+
+  const { data, error, count } = await supabase
+    .from('dramas')
+    .select(`
+      *,
+      providers!inner(name)
+    `, { count: 'exact' })
+    .eq('providers.status', 'active')
+    .order('popularity_score', { ascending: false })
+    .range(from, from + limit - 1);
+
+  if (error) {
+    throw new Error(`Failed to fetch paginated trending dramas: ${error.message}`);
+  }
+
+  const dramas = (data as DbDrama[]).map((drama, index) => ({
+    ...mapDbDramaToCard(drama),
+    rank: from + index + 1,
+  }));
+
+  return {
+    dramas,
+    total: count || 0,
+  };
+}
+
+export async function getPaginatedForYouDramas(page: number, limit: number): Promise<{ dramas: DramaCard[]; total: number }> {
+  const supabase = getSupabaseClient();
+  const from = (page - 1) * limit;
+
+  const { data, error, count } = await supabase
+    .from('dramas')
+    .select(`
+      *,
+      providers!inner(name)
+    `, { count: 'exact' })
+    .eq('providers.status', 'active')
+    .order('created_at', { ascending: false })
+    .order('popularity_score', { ascending: false })
+    .range(from, from + limit - 1);
+
+  if (error) {
+    throw new Error(`Failed to fetch paginated for-you dramas: ${error.message}`);
+  }
+
+  return {
+    dramas: (data as DbDrama[]).map(mapDbDramaToCard),
+    total: count || 0,
+  };
+}
+
+export async function getPaginatedNewReleases(page: number, limit: number): Promise<{ dramas: DramaCard[]; total: number }> {
+  const supabase = getSupabaseClient();
+  const from = (page - 1) * limit;
+
+  const { data, error, count } = await supabase
+    .from('dramas')
+    .select(`
+      *,
+      providers!inner(name)
+    `, { count: 'exact' })
+    .eq('providers.status', 'active')
+    .order('created_at', { ascending: false })
+    .range(from, from + limit - 1);
+
+  if (error) {
+    throw new Error(`Failed to fetch paginated new releases: ${error.message}`);
+  }
+
+  return {
+    dramas: (data as DbDrama[]).map(mapDbDramaToCard),
+    total: count || 0,
+  };
 }

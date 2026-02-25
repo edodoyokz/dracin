@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import PageHeader from '@/app/components/layout/PageHeader';
-import { useHomeData } from '@/hooks/useHome';
+import { useHomeSectionData } from '@/hooks/useHome';
 import { DramaCard } from '@/app/components/home/DramaCard';
 import type { DramaCard as DramaCardType, DramaWithRank } from '@/lib/types';
 
@@ -42,7 +42,8 @@ export default function HomeSeeAllSectionPage() {
   const params = useParams();
   const router = useRouter();
   const sectionParam = params.section as string;
-  const { data, loading, error, refetch } = useHomeData();
+  const [page, setPage] = useState(1);
+  const limit = 24;
 
   if (!isValidSection(sectionParam)) {
     return (
@@ -65,14 +66,12 @@ export default function HomeSeeAllSectionPage() {
   }
 
   const meta = sectionMeta(sectionParam);
+  const { data, loading, error, refetch } = useHomeSectionData(sectionParam, page, limit);
 
   const dramas = useMemo<(DramaCardType | DramaWithRank)[]>(() => {
     if (!data) return [];
-
-    if (sectionParam === 'for-you') return data.forYou;
-    if (sectionParam === 'trending') return data.trending;
-    return data.newReleases.flatMap((group) => group.dramas);
-  }, [data, sectionParam]);
+    return data.dramas;
+  }, [data]);
 
   const uniqueDramas = useMemo(() => {
     const seen = new Set<string>();
@@ -82,6 +81,8 @@ export default function HomeSeeAllSectionPage() {
       return true;
     });
   }, [dramas]);
+
+  const pagination = data?.pagination;
 
   return (
     <main className="min-h-screen bg-neutral-950 pb-24">
@@ -115,11 +116,37 @@ export default function HomeSeeAllSectionPage() {
             </button>
           </div>
         ) : uniqueDramas.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {uniqueDramas.map((drama) => (
-              <DramaCard key={drama.id} drama={drama} showProviderBadge={true} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {uniqueDramas.map((drama) => (
+                <DramaCard key={drama.id} drama={drama} showProviderBadge={true} />
+              ))}
+            </div>
+
+            {pagination && (
+              <div className="mt-8 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  disabled={pagination.page <= 1}
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  className="rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Sebelumnya
+                </button>
+                <span className="text-sm text-neutral-400">
+                  Halaman {pagination.page} • Total {pagination.total}
+                </span>
+                <button
+                  type="button"
+                  disabled={!pagination.hasMore}
+                  onClick={() => setPage((prev) => prev + 1)}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Berikutnya
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-center">
             <p className="text-sm text-neutral-300">Belum ada drama untuk section ini.</p>

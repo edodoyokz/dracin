@@ -170,6 +170,23 @@ export interface HomeResponseData {
   providers: ProviderInfo[];
 }
 
+export interface HomeSectionQuery {
+  section: 'for-you' | 'trending' | 'new-releases';
+  page: number;
+  limit: number;
+}
+
+export interface HomeSectionResponse {
+  section: 'for-you' | 'trending' | 'new-releases';
+  dramas: (DramaCard | DramaWithRank)[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    hasMore: boolean;
+  };
+}
+
 export interface ProviderInfo {
   slug: string;
   name: string;

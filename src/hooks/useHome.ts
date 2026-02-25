@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { HomeResponseData, DramaCard } from '@/lib/types';
+import type { HomeResponseData, HomeSectionResponse, DramaCard } from '@/lib/types';
 
 interface UseHomeDataReturn {
   data: HomeResponseData | null;
@@ -80,3 +80,53 @@ export function useHomeDramas(): UseHomeDramasReturn {
 }
 
 export default useHomeData;
+
+interface UseHomeSectionDataReturn {
+  data: HomeSectionResponse | null;
+  loading: boolean;
+  error: string | null;
+  refetch: () => void;
+}
+
+export function useHomeSectionData(
+  section: 'for-you' | 'trending' | 'new-releases',
+  page: number,
+  limit: number = 24
+): UseHomeSectionDataReturn {
+  const [data, setData] = useState<HomeSectionResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `/api/v1/home/sections?section=${encodeURIComponent(section)}&page=${page}&limit=${limit}`
+      );
+      const result = await response.json();
+
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+
+      setData(result.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load section data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [section, page, limit]);
+
+  return {
+    data,
+    loading,
+    error,
+    refetch: fetchData,
+  };
+}

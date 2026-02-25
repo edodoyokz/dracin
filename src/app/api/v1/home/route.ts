@@ -4,8 +4,8 @@ import {
   getTrendingDramas,
   getNewReleases,
   getProviderSections,
-  getAllProviders,
-  getHomeDramas,
+  getTopProvidersByContent,
+  getForYouDramas,
   type DbDrama
 } from '@/lib/db/dramas';
 import { getSupabaseClient } from '@/lib/db/client';
@@ -88,8 +88,8 @@ export async function GET(request: Request): Promise<NextResponse> {
       getCachedTrending(),
       getCachedNewReleases(),
       getProviderSections(),
-      getAllProviders(),
-      getForYouDramas(),
+      getTopProvidersByContent(10),
+      getForYouDramas(10),
       userId ? getContinueWatching(userId) : Promise.resolve(null),
       getGenres(),
     ]);
@@ -105,7 +105,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       newReleases,
       providerSections,
       genres,
-      providers: providers.slice(0, 10), // Top 10 for filter bar
+      providers,
     };
 
     // Cache the response
@@ -291,24 +291,15 @@ async function getContinueWatching(userId: string): Promise<ContinueWatchingItem
   });
 }
 
-// Get For You recommendations (placeholder algorithm)
-async function getForYouDramas(): Promise<DramaCard[]> {
-  // For now, return a mix of popular dramas
-  // In the future, this can be based on user history and preferences
-  const dramas = await getHomeDramas(10);
-  return dramas;
-}
-
 // Get genres with sample posters
 async function getGenres(): Promise<GenreData[]> {
   const supabase = getSupabaseClient();
 
-  // Get unique genres from dramas
   const { data: dramas, error } = await supabase
     .from('dramas')
     .select('genres, cover_url')
     .not('genres', 'is', null)
-    .limit(100);
+    .limit(500);
 
   if (error || !dramas) {
     return getDefaultGenres();

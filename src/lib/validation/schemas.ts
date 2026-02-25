@@ -228,6 +228,18 @@ export const dramaDetailPathSchema = z.object({
         .max(200, 'Drama ID too long'),
 });
 
+export const homeSectionQuerySchema = z.object({
+    section: z.enum(['for-you', 'trending', 'new-releases']),
+    page: pageSchema,
+    limit: z.string()
+        .optional()
+        .default('24')
+        .transform(val => parseInt(val, 10))
+        .refine(val => !isNaN(val) && val >= 1 && val <= 100, {
+            message: 'Limit must be an integer between 1 and 100',
+        }),
+});
+
 // ============================================================================
 // Validation Helper Functions
 // ============================================================================
