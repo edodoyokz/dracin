@@ -55,6 +55,9 @@ export function ProviderFilterBar({
     return (
         <div className="sticky top-[64px] z-30 bg-neutral-950/95 backdrop-blur-xl border-b border-white/5">
             <div className="px-4 py-3">
+                <p className="text-[11px] text-neutral-500 mb-2">
+                    Menampilkan provider populer. Gunakan <span className="text-neutral-300 font-semibold">Lainnya</span> untuk melihat semua.
+                </p>
                 <div className="flex items-center space-x-1 overflow-x-auto scrollbar-hide snap-x">
                     {/* All Tab */}
                     <button
@@ -110,7 +113,14 @@ export function ProviderFilterBar({
 
                             {/* Dropdown Menu */}
                             {showDropdown && (
-                                <div className="absolute top-full right-0 mt-2 w-64 bg-neutral-900 rounded-xl shadow-2xl border border-white/10 overflow-hidden z-50">
+                                <>
+                                    <button
+                                        type="button"
+                                        aria-label="Tutup daftar provider"
+                                        className="fixed inset-0 bg-black/40 backdrop-blur-[1px] z-40"
+                                        onClick={() => setShowDropdown(false)}
+                                    />
+                                    <div className="absolute top-full right-0 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-neutral-900 rounded-xl shadow-2xl border border-white/10 overflow-hidden z-50">
                                     {/* Search Input */}
                                     <div className="p-3 border-b border-white/5">
                                         <div className="relative">
@@ -150,7 +160,8 @@ export function ProviderFilterBar({
                                             </div>
                                         )}
                                     </div>
-                                </div>
+                                    </div>
+                                </>
                             )}
                         </div>
                     )}

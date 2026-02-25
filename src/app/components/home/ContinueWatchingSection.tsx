@@ -7,7 +7,7 @@ import type { ContinueWatchingItem } from '@/lib/types';
 interface ContinueWatchingSectionProps {
     items: ContinueWatchingItem[];
     onViewAll?: () => void;
-    onContinue?: (dramaId: string, episodeNumber: number) => void;
+    onContinue?: (providerSlug: string, dramaId: string, episodeNumber: number) => void;
     onRemove?: (dramaId: string) => void;
 }
 
@@ -23,11 +23,11 @@ export function ContinueWatchingSection({
     }
 
     return (
-        <section className="mt-6 animate-slide-up" style={{ animationDelay: '50ms' }}>
+        <section className="mt-8 pt-6 border-t border-white/5 animate-slide-up" style={{ animationDelay: '50ms' }}>
             <div className="px-4">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-black tracking-tight text-white">
+                    <h2 className="text-xl font-black tracking-tight text-white">
                         Lanjutkan Menonton
                     </h2>
                     {onViewAll && items.length > 5 && (

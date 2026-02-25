@@ -24,13 +24,13 @@ export function NewReleasesSection({
 
     return (
         <section
-            className="mt-6 animate-slide-up"
+            className="mt-8 pt-6 border-t border-white/5 animate-slide-up"
             style={{ animationDelay: `${animationDelay}ms` }}
         >
             <div className="px-4">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-black tracking-tight text-white">
+                    <h2 className="text-xl font-black tracking-tight text-white">
                         Rilis Baru
                     </h2>
                     {onViewAll && (

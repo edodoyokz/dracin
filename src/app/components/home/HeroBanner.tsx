@@ -89,6 +89,10 @@ export function HeroBanner({ dramas, autoRotateInterval = 5000 }: HeroBannerProp
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
         >
+            <div aria-live="polite" className="sr-only" role="status">
+                Slide {currentIndex + 1} dari {dramas.length}: {currentDrama.title}
+            </div>
+
             {/* Slides Container */}
             <div
                 className="flex transition-transform duration-500 ease-out"
@@ -97,7 +101,7 @@ export function HeroBanner({ dramas, autoRotateInterval = 5000 }: HeroBannerProp
                 {dramas.map((drama, index) => (
                     <div
                         key={drama.id}
-                        className="w-full shrink-0 relative aspect-3/4 sm:aspect-16/10 md:aspect-video lg:aspect-21/9"
+                        className="w-full shrink-0 relative aspect-[4/5] sm:aspect-16/10 md:aspect-video lg:aspect-21/9"
                     >
                         {/* Background Image */}
                         <img
@@ -166,17 +170,25 @@ export function HeroBanner({ dramas, autoRotateInterval = 5000 }: HeroBannerProp
                                 <div className="flex items-center space-x-3">
                                     <Link
                                         href={`/dramas/${drama.id}`}
-                                        className="flex items-center justify-center space-x-2 bg-white text-black py-3 px-6 rounded-xl font-bold text-sm transition-all duration-300 hover:scale-105 hover:bg-neutral-200 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] active:scale-95"
+                                        className="flex items-center justify-center space-x-2 bg-white text-black py-3 px-6 rounded-xl font-bold text-sm transition-all duration-300 hover:scale-105 hover:bg-neutral-200 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
                                     >
                                         <Play size={18} fill="black" />
                                         <span>Tonton Sekarang</span>
                                     </Link>
 
-                                    <button className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center text-white hover:bg-white/20 transition-colors">
+                                    <button
+                                        type="button"
+                                        aria-label="Sukai drama"
+                                        className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center text-white hover:bg-white/20 hover:scale-105 active:scale-95 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                                    >
                                         <Heart size={20} />
                                     </button>
 
-                                    <button className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center text-white hover:bg-white/20 transition-colors">
+                                    <button
+                                        type="button"
+                                        aria-label="Tambah ke daftar"
+                                        className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center text-white hover:bg-white/20 hover:scale-105 active:scale-95 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                                    >
                                         <Plus size={20} />
                                     </button>
                                 </div>
@@ -203,6 +215,12 @@ export function HeroBanner({ dramas, autoRotateInterval = 5000 }: HeroBannerProp
                             aria-label={`Go to slide ${index + 1}`}
                         />
                     ))}
+                </div>
+            )}
+
+            {dramas.length > 1 && (
+                <div className="absolute top-4 right-4 bg-black/50 backdrop-blur px-2 py-1 rounded-md text-[11px] text-white/90 font-semibold">
+                    {currentIndex + 1} / {dramas.length}
                 </div>
             )}
 

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Play, Search, User, Crown } from 'lucide-react';
 import { useHomeData } from '@/hooks/useHome';
 import {
@@ -16,6 +17,7 @@ import {
 import type { HomeResponseData } from '@/lib/types';
 
 export default function HomePage() {
+  const router = useRouter();
   const { data, loading, error, refetch } = useHomeData();
   const [activeProvider, setActiveProvider] = useState<string | 'all'>('all');
   const [isPremium] = useState(false);
@@ -70,10 +72,30 @@ export default function HomePage() {
             {filteredData.continueWatching && filteredData.continueWatching.length > 0 && (
               <ContinueWatchingSection
                 items={filteredData.continueWatching}
-                onContinue={(dramaId, episodeNumber) => {
-                  console.log('Continue watching:', dramaId, episodeNumber);
+                onViewAll={() => router.push('/history')}
+                onContinue={(providerSlug, dramaId, episodeNumber) => {
+                  router.push(`/play/${providerSlug}/${dramaId}/${episodeNumber}`);
                 }}
               />
+            )}
+
+            {(!filteredData.continueWatching || filteredData.continueWatching.length === 0) && (
+              <section className="mt-6 px-4 animate-slide-up" style={{ animationDelay: '50ms' }}>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
+                  <h2 className="text-lg font-black tracking-tight text-white">Lanjutkan Menonton</h2>
+                  <p className="mt-1 text-sm text-neutral-400">
+                    Belum ada riwayat tontonan. Mulai jelajahi drama untuk membangun rekomendasi personal.
+                  </p>
+                  <div className="mt-4">
+                    <Link
+                      href="/search"
+                      className="inline-flex items-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-500 transition-colors"
+                    >
+                      Cari Drama
+                    </Link>
+                  </div>
+                </div>
+              </section>
             )}
 
             {/* For You Section */}
@@ -83,7 +105,13 @@ export default function HomePage() {
                 subtitle="Rekomendasi personal berdasarkan tontonanmu"
                 dramas={filteredData.forYou}
                 actionLabel="Lihat Semua"
-                onAction={() => console.log('View all For You')}
+                onAction={() => {
+                  if (activeProvider !== 'all') {
+                    router.push(`/providers/${activeProvider}`);
+                  } else {
+                    router.push('/search');
+                  }
+                }}
                 animationDelay={100}
               />
             )}
@@ -97,7 +125,13 @@ export default function HomePage() {
                 showRank={true}
                 showProviderBadge={true}
                 actionLabel="Lihat Semua"
-                onAction={() => console.log('View all Trending')}
+                onAction={() => {
+                  if (activeProvider !== 'all') {
+                    router.push(`/providers/${activeProvider}`);
+                  } else {
+                    router.push('/search');
+                  }
+                }}
                 animationDelay={200}
               />
             )}
@@ -114,7 +148,13 @@ export default function HomePage() {
             {filteredData.newReleases.length > 0 && (
               <NewReleasesSection
                 groups={filteredData.newReleases}
-                onViewAll={() => console.log('View all New Releases')}
+                onViewAll={() => {
+                  if (activeProvider !== 'all') {
+                    router.push(`/providers/${activeProvider}`);
+                  } else {
+                    router.push('/search');
+                  }
+                }}
                 animationDelay={400}
               />
             )}
