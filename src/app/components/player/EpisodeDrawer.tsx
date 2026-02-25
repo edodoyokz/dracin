@@ -98,7 +98,7 @@ export function EpisodeDrawer({
                 </div>
 
                 {/* Episode List */}
-                <div className="overflow-y-auto h-[calc(100%-80px)] p-2 space-y-1">
+                <div className="overflow-y-auto h-[calc(100%-80px)] p-4 space-y-2 custom-scrollbar">
                     {episodes.map((episode) => {
                         const isCurrent = episode.episodeNo === currentEpisodeNo;
                         const isWatched = watchedEpisodes.includes(episode.episodeNo);
@@ -111,39 +111,40 @@ export function EpisodeDrawer({
                                 ref={isCurrent ? currentRef : null}
                                 onClick={() => !isLocked && onEpisodeSelect(episode.episodeNo)}
                                 disabled={isLocked}
-                                className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 text-left group ${isCurrent
-                                    ? 'bg-red-600/20 border border-red-600/30'
+                                className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-300 text-left group border ${isCurrent
+                                    ? 'bg-red-600/10 border-red-600/30 shadow-[0_0_20px_rgba(220,38,38,0.1)]'
                                     : isWatched
-                                        ? 'bg-white/5 hover:bg-white/10'
-                                        : 'hover:bg-white/5'
+                                        ? 'bg-white/5 hover:bg-white/10 border-transparent hover:border-white/10'
+                                        : 'hover:bg-white/5 border-transparent hover:border-white/10'
                                     } ${isLocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
                             >
                                 {/* Thumbnail */}
-                                <div className="relative w-24 h-14 rounded-lg overflow-hidden bg-black shrink-0">
+                                <div className="relative w-28 h-16 rounded-lg overflow-hidden bg-black shrink-0 shadow-md">
                                     {episode.thumbnailUrl ? (
                                         <img
                                             src={episode.thumbnailUrl}
                                             alt={`Episode ${episode.episodeNo}`}
-                                            className="w-full h-full object-cover"
+                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                         />
                                     ) : (
-                                        <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
-                                            <span className="text-xs text-slate-500">EP {episode.episodeNo}</span>
+                                        <div className="w-full h-full bg-zinc-800 flex items-center justify-center transition-transform duration-500 group-hover:scale-110">
+                                            <span className="text-xs text-slate-500 font-medium">EP {episode.episodeNo}</span>
                                         </div>
                                     )}
 
                                     {/* Overlay Icons */}
-                                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                                    <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${isCurrent ? 'bg-black/20' : 'bg-black/40 group-hover:bg-black/20'}`}>
                                         {isLocked ? (
                                             <Lock size={16} className="text-white/80" />
                                         ) : isCurrent ? (
-                                            <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center">
-                                                <Play size={14} className="text-white ml-0.5" fill="white" />
+                                            <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.4)] relative">
+                                                <div className="absolute inset-0 rounded-full border-2 border-red-400 animate-ping opacity-20"></div>
+                                                <Play size={14} className="text-white ml-0.5" fill="currentColor" />
                                             </div>
                                         ) : isWatched ? (
-                                            <CheckCircle2 size={16} className="text-green-500" />
+                                            <CheckCircle2 size={16} className="text-green-400 bg-black/50 rounded-full shadow-sm" />
                                         ) : (
-                                            <Play size={16} className="text-white/80 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            <Play size={24} className="text-white opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-75 group-hover:scale-100 drop-shadow-md" fill="currentColor" />
                                         )}
                                     </div>
 

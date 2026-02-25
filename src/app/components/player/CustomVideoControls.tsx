@@ -111,44 +111,35 @@ export function CustomVideoControls({
 
     return (
         <div
-            className={`absolute inset-0 flex flex-col justify-end bg-linear-to-t from-black/80 via-black/20 to-transparent transition-opacity duration-300 ${playback.showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            className={`absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/10 to-transparent transition-opacity duration-300 ${playback.showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
             onMouseMove={onShowControlsTemporarily}
             onClick={onShowControlsTemporarily}
         >
-            {/* Top bar - Title and Episode */}
-            <div className="absolute top-0 left-0 right-0 p-4 bg-linear-to-b from-black/80 to-transparent">
-                <div className="flex items-center justify-between">
-                    <div className="text-white">
-                        {/* Title will be passed from parent */}
-                    </div>
-                </div>
-            </div>
-
             {/* Center controls - Play/Pause */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none transition-transform duration-300">
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
                         onTogglePlay();
                     }}
-                    className={`w-20 h-20 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center transition-all duration-200 hover:bg-white/30 hover:scale-110 pointer-events-auto ${playback.isPlaying ? 'opacity-0 scale-90' : 'opacity-100 scale-100'
+                    className={`w-20 h-20 rounded-full bg-black/40 hover:bg-red-600/80 backdrop-blur-md flex items-center justify-center transition-all duration-300 pointer-events-auto shadow-2xl border border-white/10 hover:scale-110 ${playback.isPlaying ? 'opacity-0 scale-90' : 'opacity-100 scale-100'
                         }`}
                 >
                     {playback.isPlaying ? (
                         <Pause size={32} className="text-white ml-0" />
                     ) : (
-                        <Play size={32} className="text-white ml-1" fill="white" />
+                        <Play size={32} className="text-white ml-2" fill="currentColor" />
                     )}
                 </button>
             </div>
 
-            {/* Bottom controls */}
-            <div className="p-4 space-y-2">
+            {/* Bottom controls container */}
+            <div className="p-4 space-y-3 px-6 pb-6">
                 {/* Progress bar */}
                 <div
                     ref={progressRef}
-                    className="relative h-1.5 bg-white/20 rounded-full cursor-pointer group"
+                    className="relative h-2 bg-white/20 rounded-full cursor-pointer group hover:h-2.5 transition-all duration-200"
                     onMouseDown={handleProgressMouseDown}
                     onMouseMove={handleProgressMouseMove}
                     onMouseLeave={handleProgressMouseLeave}
@@ -156,7 +147,7 @@ export function CustomVideoControls({
                 >
                     {/* Buffered progress */}
                     <div
-                        className="absolute h-full bg-white/30 rounded-full"
+                        className="absolute h-full bg-white/40 rounded-full"
                         style={{ width: `${buffered}%` }}
                     />
 
@@ -190,22 +181,22 @@ export function CustomVideoControls({
                 </div>
 
                 {/* Control buttons */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between pt-2">
                     {/* Left controls */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                         {/* Play/Pause */}
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onTogglePlay();
                             }}
-                            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                            className="p-2 hover:bg-white/20 rounded-full transition-colors group"
                             aria-label={playback.isPlaying ? 'Pause' : 'Play'}
                         >
                             {playback.isPlaying ? (
-                                <Pause size={24} className="text-white" />
+                                <Pause size={24} className="text-white group-hover:text-red-400 transition-colors" fill="currentColor" />
                             ) : (
-                                <Play size={24} className="text-white" />
+                                <Play size={24} className="text-white group-hover:text-red-400 transition-colors" fill="currentColor" />
                             )}
                         </button>
 
@@ -215,7 +206,7 @@ export function CustomVideoControls({
                                 e.stopPropagation();
                                 playback.seekRelative(-10);
                             }}
-                            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                            className="p-2 hover:bg-white/20 rounded-full transition-colors hidden sm:block"
                             aria-label="Skip back 10s"
                         >
                             <SkipBack size={20} className="text-white" />
@@ -227,31 +218,24 @@ export function CustomVideoControls({
                                 e.stopPropagation();
                                 playback.seekRelative(10);
                             }}
-                            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                            className="p-2 hover:bg-white/20 rounded-full transition-colors hidden sm:block"
                             aria-label="Skip forward 10s"
                         >
                             <SkipForward size={20} className="text-white" />
                         </button>
 
-                        {/* Time display */}
-                        <div className="text-sm text-white font-medium tabular-nums">
-                            <span>{playback.formatTime(playback.currentTime)}</span>
-                            <span className="text-white/60 mx-1">/</span>
-                            <span className="text-white/60">{playback.formatTime(playback.duration)}</span>
-                        </div>
-
                         {/* Volume control */}
-                        <div className="flex items-center gap-2 group ml-2">
+                        <div className="flex items-center group relative -ml-1">
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     onToggleMute();
                                 }}
-                                className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                                className="p-2 hover:bg-white/20 rounded-full transition-colors z-10"
                                 aria-label={playback.isMuted ? 'Unmute' : 'Mute'}
                             >
                                 {playback.isMuted || playback.volume === 0 ? (
-                                    <VolumeX size={20} className="text-white" />
+                                    <VolumeX size={20} className="text-red-400" />
                                 ) : (
                                     <Volume2 size={20} className="text-white" />
                                 )}
@@ -259,35 +243,48 @@ export function CustomVideoControls({
 
                             {/* Volume slider */}
                             <div
-                                className="w-0 overflow-hidden group-hover:w-20 transition-all duration-200"
+                                className="w-0 overflow-hidden group-hover:w-24 transition-all duration-300 ease-out origin-left flex items-center"
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 <div
-                                    className="h-1 bg-white/30 rounded-full cursor-pointer mx-2"
+                                    className="h-1.5 w-full bg-white/30 rounded-full cursor-pointer mx-1 relative group/slider"
                                     onClick={handleVolumeClick}
                                 >
                                     <div
-                                        className="h-full bg-white rounded-full"
+                                        className="absolute h-full bg-white group-hover/slider:bg-red-500 rounded-full transition-colors"
                                         style={{ width: `${playback.isMuted ? 0 : playback.volume * 100}%` }}
                                     />
                                 </div>
                             </div>
                         </div>
+
+                        {/* Time display */}
+                        <div className="text-sm text-white/90 font-medium tabular-nums ml-2">
+                            <span>{playback.formatTime(playback.currentTime)}</span>
+                            <span className="text-white/40 mx-1.5">/</span>
+                            <span className="text-white/60">{playback.formatTime(playback.duration)}</span>
+                        </div>
                     </div>
 
                     {/* Right controls */}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                         {/* Subtitles toggle */}
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onToggleSubtitles();
                             }}
-                            className={`p-2 rounded-full transition-colors ${playback.showSubtitles ? 'bg-white/20' : 'hover:bg-white/10'
+                            className={`p-2 rounded-full transition-colors relative group ${playback.showSubtitles ? 'text-white' : 'text-white/50 hover:text-white'
                                 }`}
                             aria-label="Toggle subtitles"
                         >
-                            <Subtitles size={20} className="text-white" />
+                            <Subtitles size={20} />
+                            {playback.showSubtitles && (
+                                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-red-500 rounded-full" />
+                            )}
+                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                                Subtitles
+                            </span>
                         </button>
 
                         {/* Playback speed */}
@@ -296,11 +293,14 @@ export function CustomVideoControls({
                                 e.stopPropagation();
                                 onCyclePlaybackSpeed();
                             }}
-                            className="px-2 py-1 hover:bg-white/10 rounded transition-colors min-w-[40px]"
+                            className="px-2 py-1.5 hover:bg-white/20 rounded-md transition-colors min-w-[48px] flex justify-center group relative"
                             aria-label="Change playback speed"
                         >
                             <span className="text-sm text-white font-medium">
                                 {playback.playbackSpeed}x
+                            </span>
+                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                                Speed
                             </span>
                         </button>
 
@@ -310,11 +310,14 @@ export function CustomVideoControls({
                                 e.stopPropagation();
                                 onToggleSettings();
                             }}
-                            className={`p-2 rounded-full transition-colors ${playback.isSettingsOpen ? 'bg-white/20' : 'hover:bg-white/10'
+                            className={`p-2 rounded-full transition-colors group relative ${playback.isSettingsOpen ? 'bg-white/20 text-white' : 'hover:bg-white/20 text-white/90'
                                 }`}
                             aria-label="Settings"
                         >
-                            <Settings size={20} className="text-white" />
+                            <Settings size={20} className="group-hover:rotate-45 transition-transform duration-300" />
+                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                                Settings
+                            </span>
                         </button>
 
                         {/* Fullscreen */}
@@ -323,14 +326,17 @@ export function CustomVideoControls({
                                 e.stopPropagation();
                                 onToggleFullscreen();
                             }}
-                            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                            className="p-2 hover:bg-white/20 rounded-full transition-colors ml-1 group relative"
                             aria-label={playback.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
                         >
                             {playback.isFullscreen ? (
-                                <Minimize size={20} className="text-white" />
+                                <Minimize size={22} className="text-white" />
                             ) : (
-                                <Maximize size={20} className="text-white" />
+                                <Maximize size={22} className="text-white" />
                             )}
+                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                                Fullscreen
+                            </span>
                         </button>
                     </div>
                 </div>

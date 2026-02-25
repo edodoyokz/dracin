@@ -278,36 +278,63 @@ export default function PlayPage() {
         className={`absolute top-0 left-0 right-0 z-130 p-4 bg-linear-to-b from-black/80 to-transparent transition-opacity duration-300 ${playback.showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between max-w-screen-2xl mx-auto w-full">
+          <div className="flex items-center gap-4">
             <button
               onClick={() => router.back()}
-              className="p-2 bg-white/10 backdrop-blur-md rounded-full hover:bg-white/20 transition-colors"
+              className="p-2.5 bg-black/40 backdrop-blur-md border border-white/10 rounded-full hover:bg-white/20 transition-all duration-300 pointer-events-auto"
               aria-label="Go back"
             >
-              <ArrowLeft size={20} className="text-white" />
+              <ArrowLeft size={22} className="text-white" />
             </button>
             <div className="hidden sm:block">
-              <h1 className="text-white font-semibold line-clamp-1">
+              <h1 className="text-white font-semibold line-clamp-1 drop-shadow-md text-lg">
                 {drama?.title || 'Loading...'}
               </h1>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-white/80 drop-shadow-md">
                 Episode {episodeNo}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pointer-events-auto">
+            {/* Action Buttons */}
+            <div className="hidden md:flex items-center gap-2 mr-2">
+              <button className="p-2.5 bg-black/40 backdrop-blur-md border border-white/10 rounded-full text-white hover:bg-white/20 transition-all duration-300">
+                <Heart size={20} />
+              </button>
+              <button className="p-2.5 bg-black/40 backdrop-blur-md border border-white/10 rounded-full text-white hover:bg-white/20 transition-all duration-300">
+                <Bookmark size={20} />
+              </button>
+              <button className="p-2.5 bg-black/40 backdrop-blur-md border border-white/10 rounded-full text-white hover:bg-white/20 transition-all duration-300">
+                <Share2 size={20} />
+              </button>
+            </div>
+
+            {/* Next Episode Button (Top Right) */}
+            {nextEpisode && !nextEpisode.isLocked && (
+              <button
+                onClick={handleNextEpisode}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-black/40 backdrop-blur-md border border-white/10 text-white rounded-full hover:bg-white/20 transition-all duration-300"
+              >
+                <span className="text-sm font-medium">Episode Berikutnya</span>
+                <SkipForward size={18} />
+              </button>
+            )}
+
+            <div className="w-px h-6 bg-white/20 mx-1 hidden sm:block"></div>
+
             {/* Episode List Button */}
             <button
               onClick={playback.toggleEpisodeDrawer}
-              className={`p-2 rounded-full transition-colors ${playback.isEpisodeDrawerOpen
-                ? 'bg-red-600 text-white'
-                : 'bg-white/10 backdrop-blur-md text-white hover:bg-white/20'
+              className={`p-2.5 rounded-full border border-white/10 transition-all duration-300 flex items-center gap-2 px-4 ${playback.isEpisodeDrawerOpen
+                ? 'bg-red-600 text-white border-transparent'
+                : 'bg-black/40 backdrop-blur-md text-white hover:bg-white/20'
                 }`}
               aria-label="Episode list"
             >
               <List size={20} />
+              <span className="hidden sm:inline text-sm font-medium">Episodes</span>
             </button>
           </div>
         </div>
@@ -317,20 +344,25 @@ export default function PlayPage() {
       <div className="h-full flex flex-col">
         <div className="flex-1 relative flex items-center justify-center">
           {loading ? (
-            <div className="flex flex-col items-center space-y-4">
-              <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
-              <p className="text-xs text-slate-500 font-mono">Memuat video...</p>
+            <div className="absolute inset-0 flex flex-col justify-center items-center bg-zinc-950 z-100">
+              <div className="relative w-20 h-20 mb-6 flex items-center justify-center">
+                <div className="absolute inset-0 border-4 border-white/10 rounded-full"></div>
+                <div className="absolute inset-0 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                <Play size={24} className="text-white/50 ml-1 animate-pulse" fill="currentColor" />
+              </div>
+              <p className="text-white/70 font-medium tracking-wide">Menyiapkan video...</p>
             </div>
           ) : error ? (
-            <div className="text-center p-4 max-w-md">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-600/20 flex items-center justify-center">
-                <span className="text-2xl">😕</span>
+            <div className="absolute inset-0 flex flex-col justify-center items-center bg-zinc-950 z-100 p-6">
+              <div className="w-20 h-20 mb-6 rounded-full bg-red-600/10 border border-red-600/20 flex items-center justify-center relative overflow-hidden">
+                <div className="absolute inset-0 bg-red-600/20 animate-ping opacity-50"></div>
+                <span className="text-3xl relative z-10">😕</span>
               </div>
-              <p className="text-red-500 font-bold mb-2">Gagal Memuat Video</p>
-              <p className="text-slate-400 text-sm mb-4">{error}</p>
+              <h3 className="text-xl font-bold text-white mb-2">Gagal Memuat Video</h3>
+              <p className="text-slate-400 text-center max-w-sm mb-8 leading-relaxed">{error}</p>
               <button
                 onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                className="px-8 py-3 bg-red-600 text-white rounded-full hover:bg-red-700 hover:scale-105 transition-all shadow-[0_0_20px_rgba(220,38,38,0.3)] font-medium"
               >
                 Coba Lagi
               </button>
@@ -400,54 +432,6 @@ export default function PlayPage() {
           ) : null}
         </div>
       </div>
-
-      {/* Bottom Action Bar */}
-      {!loading && !error && (
-        <div
-          className={`absolute bottom-0 left-0 right-0 z-130 p-4 bg-linear-to-t from-black/80 to-transparent transition-opacity duration-300 ${playback.showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
-            }`}
-        >
-          <div className="flex items-center justify-between max-w-7xl mx-auto">
-            {/* Left: Back and Episode Info */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.back()}
-                className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-lg text-white hover:bg-white/20 transition-colors"
-              >
-                <ChevronLeft size={18} />
-                <span className="hidden sm:inline">Kembali</span>
-              </button>
-            </div>
-
-            {/* Center: Action Buttons */}
-            <div className="flex items-center gap-3">
-              <button className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-white/20 transition-colors">
-                <Heart size={20} />
-              </button>
-              <button className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-white/20 transition-colors">
-                <Bookmark size={20} />
-              </button>
-              <button className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-white/20 transition-colors">
-                <Share2 size={20} />
-              </button>
-            </div>
-
-            {/* Right: Next Episode */}
-            <div className="flex items-center gap-3">
-              {nextEpisode && !nextEpisode.isLocked && (
-                <button
-                  onClick={handleNextEpisode}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  <span className="hidden sm:inline">Episode Selanjutnya</span>
-                  <span className="sm:hidden">Next</span>
-                  <SkipForward size={18} />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Episode Drawer */}
       <EpisodeDrawer
