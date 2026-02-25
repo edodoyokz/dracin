@@ -160,6 +160,7 @@ export class GoodShortAdapter extends BaseProviderAdapter {
   }
 
   mapPlayback(response: unknown): PlaybackResponse {
+    const root = response as Record<string, unknown>;
     const unwrapped = this.unwrapResponse(response) as Record<string, unknown>;
 
     const streamUrl =
@@ -168,10 +169,16 @@ export class GoodShortAdapter extends BaseProviderAdapter {
       || (typeof unwrapped.playUrl === 'string' && unwrapped.playUrl)
       || (typeof unwrapped.streamUrl === 'string' && unwrapped.streamUrl)
       || (typeof unwrapped.url === 'string' && unwrapped.url)
+      || (typeof root.m3u8 === 'string' && root.m3u8)
+      || (typeof root.playUrl === 'string' && root.playUrl)
+      || (typeof root.videoUrl === 'string' && root.videoUrl)
+      || (typeof root.streamUrl === 'string' && root.streamUrl)
+      || (typeof root.url === 'string' && root.url)
       || '';
 
     const expiresAt =
       (typeof unwrapped.expiresAt === 'string' && unwrapped.expiresAt)
+      || (typeof root.expiresAt === 'string' && root.expiresAt)
       || new Date(Date.now() + 2 * 60 * 1000).toISOString();
 
     return {

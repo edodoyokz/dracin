@@ -60,6 +60,7 @@ export function usePlayback({ videoRef, onProgress, onEnded, onNextEpisode }: Us
     // Refs for timers and intervals
     const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const countdownValueRef = useRef<number | null>(null);
     const hideControlsDelay = 3000;
 
     // Load auto-play preference from localStorage
@@ -77,14 +78,18 @@ export function usePlayback({ videoRef, onProgress, onEnded, onNextEpisode }: Us
     }, []);
 
     // Toggle play/pause
-    const togglePlay = useCallback(() => {
+    const togglePlay = useCallback(async () => {
         const video = videoRef.current;
         if (!video) return;
 
-        if (video.paused) {
-            video.play();
-        } else {
-            video.pause();
+        try {
+            if (video.paused) {
+                await video.play();
+            } else {
+                video.pause();
+            }
+        } catch (error) {
+            console.error('Playback failed:', error);
         }
     }, [videoRef]);
 
@@ -208,21 +213,31 @@ export function usePlayback({ videoRef, onProgress, onEnded, onNextEpisode }: Us
     const startNextEpisodeCountdown = useCallback(() => {
         if (!ui.isAutoPlayEnabled || ui.nextEpisodeCountdown !== null) return;
 
+        // Initialize countdown value in ref
+        countdownValueRef.current = AUTOPLAY_COUNTDOWN;
         setUI(prev => ({ ...prev, nextEpisodeCountdown: AUTOPLAY_COUNTDOWN }));
 
         countdownIntervalRef.current = setInterval(() => {
-            setUI(prev => {
-                if (prev.nextEpisodeCountdown === null || prev.nextEpisodeCountdown <= 1) {
-                    if (countdownIntervalRef.current) {
-                        clearInterval(countdownIntervalRef.current);
-                    }
-                    if (prev.nextEpisodeCountdown !== null && onNextEpisode) {
-                        onNextEpisode();
-                    }
-                    return { ...prev, nextEpisodeCountdown: null };
+            const currentValue = countdownValueRef.current;
+            
+            if (currentValue === null || currentValue <= 1) {
+                // Clear interval
+                if (countdownIntervalRef.current) {
+                    clearInterval(countdownIntervalRef.current);
                 }
-                return { ...prev, nextEpisodeCountdown: prev.nextEpisodeCountdown - 1 };
-            });
+                
+                // Update state and call next episode
+                setUI(prev => ({ ...prev, nextEpisodeCountdown: null }));
+                countdownValueRef.current = null;
+                
+                if (currentValue !== null && onNextEpisode) {
+                    onNextEpisode();
+                }
+            } else {
+                // Decrement countdown
+                countdownValueRef.current = currentValue - 1;
+                setUI(prev => ({ ...prev, nextEpisodeCountdown: currentValue - 1 }));
+            }
         }, 1000);
     }, [ui.isAutoPlayEnabled, ui.nextEpisodeCountdown, onNextEpisode]);
 
@@ -232,78 +247,89 @@ export function usePlayback({ videoRef, onProgress, onEnded, onNextEpisode }: Us
             clearInterval(countdownIntervalRef.current);
         }
         setUI(prev => ({ ...prev, nextEpisodeCountdown: null }));
+        countdownValueRef.current = null;
     }, []);
 
-    // Video event handlers
-    useEffect(() => {
+    // Video event handlers (memoized to prevent memory leaks)
+    const handleTimeUpdate = useCallback(() => {
         const video = videoRef.current;
         if (!video) return;
 
-        const handleTimeUpdate = () => {
-            const current = video.currentTime;
-            const duration = video.duration || 0;
+        const current = video.currentTime;
+        const duration = video.duration || 0;
 
-            setPlayback(prev => ({
-                ...prev,
-                currentTime: current,
-                duration: duration,
-                buffered: video.buffered.length > 0
-                    ? video.buffered.end(video.buffered.length - 1)
-                    : 0,
-            }));
+        setPlayback(prev => ({
+            ...prev,
+            currentTime: current,
+            duration: duration,
+            buffered: video.buffered.length > 0
+                ? video.buffered.end(video.buffered.length - 1)
+                : 0,
+        }));
 
-            onProgress?.(current, duration);
+        onProgress?.(current, duration);
 
-            // Start countdown when video is near end (>90% and last 10 seconds)
-            if (duration > 0 && current / duration > 0.9 && duration - current < 10) {
-                startNextEpisodeCountdown();
-            }
-        };
+        // Start countdown when video is near end (>90% and last 10 seconds)
+        if (duration > 0 && current / duration > 0.9 && duration - current < 10) {
+            startNextEpisodeCountdown();
+        }
+    }, [onProgress, startNextEpisodeCountdown]);
 
-        const handlePlay = () => {
-            setPlayback(prev => ({ ...prev, isPlaying: true }));
-        };
+    const handlePlay = useCallback(() => {
+        setPlayback(prev => ({ ...prev, isPlaying: true }));
+    }, []);
 
-        const handlePause = () => {
-            setPlayback(prev => ({ ...prev, isPlaying: false }));
-        };
+    const handlePause = useCallback(() => {
+        setPlayback(prev => ({ ...prev, isPlaying: false }));
+    }, []);
 
-        const handleVolumeChange = () => {
-            setPlayback(prev => ({
-                ...prev,
-                volume: video.volume,
-                isMuted: video.muted,
-            }));
-        };
+    const handleVolumeChange = useCallback(() => {
+        const video = videoRef.current;
+        if (!video) return;
 
-        const handleLoadedMetadata = () => {
-            setPlayback(prev => ({
-                ...prev,
-                duration: video.duration || 0,
-            }));
-        };
+        setPlayback(prev => ({
+            ...prev,
+            volume: video.volume,
+            isMuted: video.muted,
+        }));
+    }, []);
 
-        const handleWaiting = () => {
-            setPlayback(prev => ({ ...prev, isBuffering: true }));
-        };
+    const handleLoadedMetadata = useCallback(() => {
+        const video = videoRef.current;
+        if (!video) return;
 
-        const handleCanPlay = () => {
-            setPlayback(prev => ({ ...prev, isBuffering: false }));
-        };
+        setPlayback(prev => ({
+            ...prev,
+            duration: video.duration || 0,
+        }));
+    }, []);
 
-        const handleEnded = () => {
-            onEnded?.();
-            if (ui.isAutoPlayEnabled) {
-                startNextEpisodeCountdown();
-            }
-        };
+    const handleWaiting = useCallback(() => {
+        setPlayback(prev => ({ ...prev, isBuffering: true }));
+    }, []);
 
-        const handleFullscreenChange = () => {
-            setPlayback(prev => ({
-                ...prev,
-                isFullscreen: !!document.fullscreenElement,
-            }));
-        };
+    const handleCanPlay = useCallback(() => {
+        setPlayback(prev => ({ ...prev, isBuffering: false }));
+    }, []);
+
+    const handleEnded = useCallback(() => {
+        onEnded?.();
+        if (ui.isAutoPlayEnabled) {
+            startNextEpisodeCountdown();
+        }
+    }, [onEnded, ui.isAutoPlayEnabled, startNextEpisodeCountdown]);
+
+    const handleFullscreenChange = useCallback(() => {
+        setPlayback(prev => ({
+            ...prev,
+            isFullscreen: !!document.fullscreenElement,
+        }));
+    }, []);
+
+    // Attach event listeners
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
 
         video.addEventListener('timeupdate', handleTimeUpdate);
         video.addEventListener('play', handlePlay);
@@ -326,7 +352,7 @@ export function usePlayback({ videoRef, onProgress, onEnded, onNextEpisode }: Us
             video.removeEventListener('ended', handleEnded);
             document.removeEventListener('fullscreenchange', handleFullscreenChange);
         };
-    }, [videoRef, onProgress, onEnded, ui.isAutoPlayEnabled, startNextEpisodeCountdown]);
+    }, [videoRef, handleTimeUpdate, handlePlay, handlePause, handleVolumeChange, handleLoadedMetadata, handleWaiting, handleCanPlay, handleEnded, handleFullscreenChange]);
 
     // Cleanup
     useEffect(() => {

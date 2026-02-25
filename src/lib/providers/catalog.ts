@@ -91,7 +91,13 @@ class ProviderCatalog {
       return null;
     }
 
-    const endpoint = this.findBestEndpoint(provider.endpoints, intent, params);
+    let endpoint = this.findBestEndpoint(provider.endpoints, intent, params);
+    if (!endpoint && intent === 'episodes' && slug === 'shortmax') {
+      endpoint =
+        provider.endpoints.find(ep => /\/api\/v1\/detail\/:code/i.test(ep.path))
+        || provider.endpoints.find(ep => /\/api\/v1\/play\/:code/i.test(ep.path))
+        || null;
+    }
     if (!endpoint) {
       return null;
     }

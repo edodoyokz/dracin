@@ -45,13 +45,20 @@ export async function getPlaybackUrl(
     throw new Error('PLAYBACK_ENDPOINT_NOT_FOUND');
   }
 
+  let requestUrl = resolved.url;
+
+  if (providerSlug === 'shortmax' && providerEpisodeId) {
+    const sep = requestUrl.includes('?') ? '&' : '?';
+    requestUrl = `${requestUrl}${sep}ep=${encodeURIComponent(providerEpisodeId)}`;
+  }
+
   logger.info('playback_resolved', {
     requestId,
     provider: providerSlug,
-    url: resolved.url,
+    url: requestUrl,
   });
 
-  const response = await captainClient.get(resolved.url, {
+  const response = await captainClient.get(requestUrl, {
     provider: providerSlug,
     requestId,
     timeout: 15000,

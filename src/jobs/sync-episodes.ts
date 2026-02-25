@@ -86,13 +86,17 @@ export async function syncEpisodes(
       bookId: providerDramaId,
       dramaId: providerDramaId,
       seriesId: providerDramaId,
+      series_id: providerDramaId,
+      vid: providerDramaId,
+      programId: providerDramaId,
+      seasonId: providerDramaId,
       slug: providerDramaId,
     };
 
     let resolved = providerCatalog.resolveEndpoint(providerSlug, 'episodes', endpointParams);
 
     if (!resolved) {
-      for (const fallback of ['playback', 'detail'] as const) {
+      for (const fallback of ['detail', 'playback'] as const) {
         resolved = providerCatalog.resolveEndpoint(providerSlug, fallback, endpointParams);
 
         if (resolved) {

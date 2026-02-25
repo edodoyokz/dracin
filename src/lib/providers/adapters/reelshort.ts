@@ -47,6 +47,11 @@ interface ReelShortChapter {
 interface ReelShortVideo {
   videoUrl: string;
   video_url?: string;
+  videos?: Array<{
+    PlayURL?: string;
+    playUrl?: string;
+    url?: string;
+  }>;
 }
 
 export class ReelShortAdapter extends BaseProviderAdapter {
@@ -127,9 +132,17 @@ export class ReelShortAdapter extends BaseProviderAdapter {
   }
 
   mapPlayback(response: unknown): PlaybackResponse {
-    const video = response as ReelShortVideo;
+    const video = this.unwrapResponse(response) as ReelShortVideo;
+    const streamUrl =
+      video?.videoUrl
+      || video?.video_url
+      || video?.videos?.[0]?.PlayURL
+      || video?.videos?.[0]?.playUrl
+      || video?.videos?.[0]?.url
+      || '';
+
     return {
-      streamUrl: video?.videoUrl || video?.video_url || '',
+      streamUrl,
       expiresAt: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
     };
   }

@@ -79,6 +79,9 @@ export default function PlayPage() {
 
   // Load drama data and episodes
   useEffect(() => {
+    const controller = new AbortController();
+    const signal = controller.signal;
+
     async function loadDramaData() {
       try {
         const [dramaData, episodesData] = await Promise.all([
@@ -86,21 +89,38 @@ export default function PlayPage() {
           getDramaEpisodes(`${provider}:${dramaId}`),
         ]);
 
-        if (dramaData) {
-          setDrama(dramaData.drama);
+        // Only update if not cancelled
+        if (!signal.aborted) {
+          if (dramaData) {
+            setDrama(dramaData.drama);
+          }
+          setEpisodes(episodesData);
         }
-        setEpisodes(episodesData);
       } catch (err) {
-        console.error('Failed to load drama data:', err);
+        // Only log if not cancelled
+        if (!signal.aborted) {
+          console.error('Failed to load drama data:', err);
+        }
       }
     }
 
     loadDramaData();
+
+    return () => {
+      controller.abort();
+    };
   }, [provider, dramaId]);
 
   // Load playback URL
   useEffect(() => {
+    const controller = new AbortController();
+    const signal = controller.signal;
+    const requestedEpisodeNo = episodeNo;
+
     async function loadPlayback() {
+      // Check if still the same episode
+      if (signal.aborted) return;
+
       setLoading(true);
       setError(null);
 
@@ -108,23 +128,35 @@ export default function PlayPage() {
         const playbackData = await getPlaybackUrl(
           provider,
           dramaId,
-          String(episodeNo),
+          String(requestedEpisodeNo),
           'guest'
         );
 
-        if (playbackData?.streamUrl) {
-          setStreamUrl(playbackData.streamUrl);
-        } else {
-          setError('Video tidak tersedia');
+        // Only update if not cancelled and still the same episode
+        if (!signal.aborted) {
+          if (playbackData?.streamUrl) {
+            setStreamUrl(playbackData.streamUrl);
+          } else {
+            setError('Video tidak tersedia');
+          }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Gagal memuat video');
+        // Only update if not cancelled
+        if (!signal.aborted) {
+          setError(err instanceof Error ? err.message : 'Gagal memuat video');
+        }
       } finally {
-        setLoading(false);
+        if (!signal.aborted) {
+          setLoading(false);
+        }
       }
     }
 
     loadPlayback();
+
+    return () => {
+      controller.abort();
+    };
   }, [provider, dramaId, episodeNo]);
 
   // Handle next episode
@@ -137,6 +169,13 @@ export default function PlayPage() {
     }
   }
 
+  // Handle video error
+  function handleVideoError(e: React.SyntheticEvent<HTMLVideoElement, Event>) {
+    const video = e.currentTarget;
+    console.error('Video error:', video.error?.code, video.error?.message);
+    setError('Gagal memuat video');
+    setLoading(false);
+  }
   // Handle episode select
   const handleEpisodeSelect = useCallback((selectedEpisodeNo: number) => {
     if (selectedEpisodeNo !== episodeNo) {
@@ -220,8 +259,10 @@ export default function PlayPage() {
                 ref={videoRef}
                 src={streamUrl}
                 autoPlay
-                className="w-full h-full object-contain"
+                muted
                 playsInline
+                className="w-full h-full object-contain"
+                onError={handleVideoError}
               />
 
               {/* Gesture Overlay */}

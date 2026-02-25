@@ -59,6 +59,7 @@ interface FlexTVEpisode {
   title: string;
   name?: string;
   sequence: number;
+  series_no?: number;
   episodeNo?: number;
   number?: number;
   duration?: number;
@@ -69,17 +70,25 @@ interface FlexTVEpisode {
 
 interface FlexTVVideo {
   videoUrl: string;
+  video_url?: string;
   playUrl?: string;
   streamUrl?: string;
   url?: string;
   expiresAt?: string;
   expireTime?: string;
+  data?: {
+    videoUrl?: string;
+    playUrl?: string;
+    streamUrl?: string;
+    url?: string;
+  };
 }
 
 interface FlexTVEpisodesResponse {
   data?: FlexTVEpisode[];
   episodes?: FlexTVEpisode[];
   list?: FlexTVEpisode[];
+  dataList?: FlexTVEpisode[];
 }
 
 export class FlexTVAdapter extends BaseProviderAdapter {
@@ -152,16 +161,32 @@ export class FlexTVAdapter extends BaseProviderAdapter {
 
   mapEpisodes(response: unknown): EpisodeItem[] {
     const resp = response as FlexTVEpisodesResponse;
-    const episodes = resp?.data || resp?.episodes || resp?.list || (Array.isArray(response) ? response as FlexTVEpisode[] : []);
+    const raw = response as Record<string, unknown>;
+
+    const nestedData =
+      raw?.data && !Array.isArray(raw.data) && typeof raw.data === 'object'
+        ? (raw.data as { list?: FlexTVEpisode[]; episodes?: FlexTVEpisode[] })
+        : undefined;
+
+    const episodes =
+      (Array.isArray(resp?.data) ? resp.data : undefined)
+      || resp?.episodes
+      || resp?.list
+      || nestedData?.list
+      || nestedData?.episodes
+      || (Array.isArray(response) ? response as FlexTVEpisode[] : []);
+
     if (!Array.isArray(episodes)) return [];
 
     return episodes.map(ep => {
       const epId = ep.id || ep._id || ep.sectionId || String(ep.section_id || '');
+      const episodeNo = ep.sequence || ep.series_no || ep.episodeNo || ep.number || 0;
+
       return {
         episodeId: `${this.slug}:${epId}`,
         providerEpisodeId: epId,
-        episodeNo: ep.sequence || ep.episodeNo || ep.number || 0,
-        title: ep.title || ep.name || `Episode ${ep.sequence || ep.episodeNo || ep.number || 0}`,
+        episodeNo,
+        title: ep.title || ep.name || `Episode ${episodeNo}`,
         durationMs: ep.duration || ep.durationMs || 0,
         isLocked: ep.isLocked || ep.locked || false,
       };
@@ -169,9 +194,22 @@ export class FlexTVAdapter extends BaseProviderAdapter {
   }
 
   mapPlayback(response: unknown): PlaybackResponse {
-    const video = response as FlexTVVideo;
+    const video = this.unwrapResponse(response) as FlexTVVideo;
+    const streamUrl =
+      video.videoUrl
+      || video.video_url
+      || video.playUrl
+      || video.streamUrl
+      || video.url
+      || video.data?.videoUrl
+      || (video.data as Record<string, unknown> | undefined)?.video_url as string | undefined
+      || video.data?.playUrl
+      || video.data?.streamUrl
+      || video.data?.url
+      || '';
+
     return {
-      streamUrl: video.videoUrl || video.playUrl || video.streamUrl || video.url || '',
+      streamUrl,
       expiresAt: video.expiresAt || video.expireTime || new Date(Date.now() + 2 * 60 * 1000).toISOString(),
     };
   }

@@ -48,6 +48,12 @@ interface CashDramaVideo {
   url?: string;
   expiresAt?: string;
   expireTime?: string;
+  streams?: Array<{
+    url?: string;
+    playUrl?: string;
+    streamUrl?: string;
+  }>;
+  adaptive?: string;
 }
 
 interface CashDramaHomeResponse {
@@ -157,10 +163,20 @@ export class CashDramaAdapter extends BaseProviderAdapter {
   }
 
   mapPlayback(response: unknown): PlaybackResponse {
-    const video = response as CashDramaVideo;
+    const video = this.unwrapResponse(response) as CashDramaVideo;
+    const streamUrl =
+      video.videoUrl
+      || video.playUrl
+      || video.streamUrl
+      || video.url
+      || video.streams?.[0]?.url
+      || video.streams?.[0]?.playUrl
+      || video.streams?.[0]?.streamUrl
+      || video.adaptive
+      || '';
 
     return {
-      streamUrl: video.videoUrl || video.playUrl || video.streamUrl || video.url || '',
+      streamUrl,
       expiresAt: video.expiresAt || video.expireTime || new Date(Date.now() + 2 * 60 * 1000).toISOString(),
     };
   }

@@ -52,6 +52,19 @@ interface ShortMaxVideo {
   url?: string;
   expiresAt?: string;
   expireTime?: string;
+  m3u8?: string;
+  data?: {
+    id?: number;
+    name?: string;
+    episode?: number;
+    total?: number;
+    video?: {
+      video_1080?: string;
+      video_720?: string;
+      video_480?: string;
+      url?: string;
+    };
+  };
 }
 
 interface ShortMaxHomeResponse {
@@ -193,10 +206,41 @@ export class ShortMaxAdapter extends BaseProviderAdapter {
   }
 
   mapPlayback(response: unknown): PlaybackResponse {
-    const video = response as ShortMaxVideo;
+    const root = response as Record<string, unknown>;
+    const video = this.unwrapResponse(response) as ShortMaxVideo;
+    const firstItem = Array.isArray(video) ? video[0] as Record<string, unknown> : undefined;
+
+    const videoData = video.data;
+
+    const streamUrl =
+      video.videoUrl
+      || video.playUrl
+      || video.streamUrl
+      || video.url
+      || video.m3u8
+      || videoData?.video?.video_1080
+      || videoData?.video?.video_720
+      || videoData?.video?.video_480
+      || videoData?.video?.url
+      || (typeof root.url === 'string' ? root.url : undefined)
+      || (typeof root.streamUrl === 'string' ? root.streamUrl : undefined)
+      || (typeof root.playUrl === 'string' ? root.playUrl : undefined)
+      || (typeof root.videoUrl === 'string' ? root.videoUrl : undefined)
+      || (typeof root.m3u8 === 'string' ? root.m3u8 : undefined)
+      || ((root.data && typeof root.data === 'object' && !Array.isArray(root.data))
+        ? ((root.data as { video?: { video_1080?: string; video_720?: string; video_480?: string; url?: string } }).video?.video_1080
+          || (root.data as { video?: { video_1080?: string; video_720?: string; video_480?: string; url?: string } }).video?.video_720
+          || (root.data as { video?: { video_1080?: string; video_720?: string; video_480?: string; url?: string } }).video?.video_480
+          || (root.data as { video?: { video_1080?: string; video_720?: string; video_480?: string; url?: string } }).video?.url)
+        : undefined)
+      || (typeof firstItem?.url === 'string' ? firstItem.url : undefined)
+      || (typeof firstItem?.streamUrl === 'string' ? firstItem.streamUrl : undefined)
+      || (typeof firstItem?.playUrl === 'string' ? firstItem.playUrl : undefined)
+      || (typeof firstItem?.videoUrl === 'string' ? firstItem.videoUrl : undefined)
+      || '';
 
     return {
-      streamUrl: video.videoUrl || video.playUrl || video.streamUrl || video.url || '',
+      streamUrl,
       expiresAt: video.expiresAt || video.expireTime || new Date(Date.now() + 2 * 60 * 1000).toISOString(),
     };
   }
