@@ -46,9 +46,11 @@ function extractEpisodesPayload(payload: unknown, intent: string): unknown {
 
   const root = unwrapped as Record<string, unknown>;
 
-  if (Array.isArray(root.episodes) || Array.isArray(root.chapters) || Array.isArray(root.list)) {
-    return unwrapped;
-  }
+  // Fix: Return array directly, not root object
+  if (Array.isArray(root.episodes)) return root.episodes;
+  if (Array.isArray(root.chapters)) return root.chapters;
+  if (Array.isArray(root.list)) return root.list;
+
 
   if (intent === 'detail') {
     const detailNodes = [root.drama, root.detail, root.book, root.series, root.data];
