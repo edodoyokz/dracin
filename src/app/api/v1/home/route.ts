@@ -130,13 +130,41 @@ export async function GET(request: Request): Promise<NextResponse> {
     // Get all provider info (41 active providers)
     const allProviders = getAllProviderInfo();
 
+    // Ensure every active provider appears on homepage sections
+    const mergedSectionMap = new Map(
+      mergedProviderSections.map((section) => [section.provider.slug, section])
+    );
+
+    const completeProviderSections = allProviders.map((provider) => {
+      const existing = mergedSectionMap.get(provider.slug);
+      if (existing) {
+        return {
+          ...existing,
+          provider: {
+            ...existing.provider,
+            contentCount: existing.totalCount,
+          },
+        };
+      }
+
+      return {
+        provider: {
+          slug: provider.slug,
+          name: provider.name,
+          contentCount: 0,
+        },
+        dramas: [],
+        totalCount: 0,
+      };
+    });
+
     const homeData: HomeResponseData = {
       featured,
       continueWatching,
       forYou,
       trending,
       newReleases,
-      providerSections: mergedProviderSections,
+      providerSections: completeProviderSections,
       genres,
       providers: allProviders,
     };

@@ -24,9 +24,6 @@ export function LazyProviderSection({
 
   const { provider, dramas, totalCount } = section;
 
-  if (!dramas || dramas.length === 0) {
-    return null;
-  }
 
   return (
     <section
@@ -67,17 +64,23 @@ export function LazyProviderSection({
         </div>
 
         {/* Cards */}
-        <div className="flex space-x-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
-          {dramas.map((drama) => (
-            <div key={drama.id} className="snap-start">
-              <DramaCard
-                drama={drama}
-                showProviderBadge={false}
-                variant="default"
-              />
-            </div>
-          ))}
-        </div>
+        {dramas.length > 0 ? (
+          <div className="flex space-x-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
+            {dramas.map((drama) => (
+              <div key={drama.id} className="snap-start">
+                <DramaCard
+                  drama={drama}
+                  showProviderBadge={false}
+                  variant="default"
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-400">
+            Belum ada drama untuk provider ini.
+          </div>
+        )}
       </div>
     </section>
   );

@@ -33,13 +33,21 @@ export async function GET(
     return NextResponse.json(response, { status: 400 });
   }
 
-  const { id } = validation.data;
+  const { id: rawId } = validation.data;
+
+  const normalizedId = (() => {
+    try {
+      return decodeURIComponent(rawId);
+    } catch {
+      return rawId;
+    }
+  })();
 
   try {
-    let drama = await getDramaById(id);
+    let drama = await getDramaById(normalizedId);
 
-    if (!drama && id.includes(':')) {
-      const [providerSlug, ...dramaIdParts] = id.split(':');
+    if (!drama && normalizedId.includes(':')) {
+      const [providerSlug, ...dramaIdParts] = normalizedId.split(':');
       const providerDramaId = dramaIdParts.join(':');
 
       if (providerSlug && providerDramaId) {
@@ -64,7 +72,7 @@ export async function GET(
         meta: { requestId, timestamp: new Date().toISOString() },
         error: {
           code: 'NOT_FOUND',
-          message: `Drama with id ${id} not found`,
+          message: `Drama with id ${normalizedId} not found`,
         },
       };
 
@@ -91,7 +99,7 @@ export async function GET(
       // Use fallback to provider API with auto-sync
       logger.info('episodes_fallback_to_provider', {
         requestId,
-        requestedDramaId: id,
+        requestedDramaId: normalizedId,
         dramaId: drama.id,
         provider: drama.providerSlug,
         providerDramaId: drama.providerDramaId,
@@ -111,7 +119,7 @@ export async function GET(
     if (sanitizedEpisodes.length !== episodes.length) {
       logger.warn('episodes_filtered_invalid_rows', {
         requestId,
-        requestedDramaId: id,
+        requestedDramaId: normalizedId,
         dramaId: drama.id,
         beforeCount: episodes.length,
         afterCount: sanitizedEpisodes.length,
@@ -134,7 +142,7 @@ export async function GET(
 
     logger.info('episodes_fetched', {
       requestId,
-      requestedDramaId: id,
+      requestedDramaId: normalizedId,
       dramaId: drama.id,
       count: sanitizedEpisodes.length,
       latencyMs: Date.now() - startTime,
@@ -144,7 +152,7 @@ export async function GET(
   } catch (error) {
     logger.error('episodes_fetch_failed', {
       requestId,
-      dramaId: id,
+      dramaId: normalizedId,
       error: error instanceof Error ? error.message : 'Unknown error',
       latencyMs: Date.now() - startTime,
     });
