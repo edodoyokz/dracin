@@ -22,7 +22,8 @@ export function EpisodeGrid({
     return (
         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
             {episodes.map((ep) => {
-                const isLocked = ep.isLocked && !isPremium;
+                const isDramaNova = providerSlug.toLowerCase() === 'dramanova';
+                const isLocked = isDramaNova ? false : (ep.isLocked && !isPremium);
                 const isWatched = watchedEpisodes.includes(ep.episodeNo);
 
                 return (

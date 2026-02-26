@@ -118,16 +118,27 @@ export default function SimplePlayer() {
             onEnded={handleNextEpisode}
           >
             {/* Render subtitle tracks */}
-            {playbackData.subtitles?.map((sub, index) => (
-              <track
-                key={index}
-                kind="subtitles"
-                src={sub.src}
-                srcLang={sub.srclang}
-                label={sub.label}
-                default={sub.default}
-              />
-            ))}
+            {(() => {
+              const subtitles = playbackData.subtitles || [];
+              const hasIndonesian = subtitles.some((sub) => ['id', 'in', 'indonesia'].includes((sub.srclang || '').toLowerCase()) || (sub.label || '').toLowerCase().includes('indonesia'));
+
+              return subtitles.map((sub, index) => {
+                const langCode = (sub.srclang || '').toLowerCase();
+                const label = (sub.label || '').toLowerCase();
+                const isIndonesian = ['id', 'in', 'indonesia'].includes(langCode) || label.includes('indonesia');
+
+                return (
+                  <track
+                    key={index}
+                    kind="subtitles"
+                    src={sub.src}
+                    srcLang={sub.srclang}
+                    label={sub.label}
+                    default={hasIndonesian ? isIndonesian : index === 0}
+                  />
+                );
+              });
+            })()}
           </video>
         )}
       </div>

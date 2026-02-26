@@ -115,6 +115,9 @@ export async function GET(
     }
 
     const sanitizedEpisodes = episodes.filter(isEpisodeUsable);
+    const normalizedEpisodes = drama.providerSlug === 'dramanova'
+      ? sanitizedEpisodes.map((episode) => ({ ...episode, isLocked: false }))
+      : sanitizedEpisodes;
 
     if (sanitizedEpisodes.length !== episodes.length) {
       logger.warn('episodes_filtered_invalid_rows', {
@@ -127,14 +130,14 @@ export async function GET(
     }
 
     const response: ApiResponse<EpisodeItem[]> = {
-      data: sanitizedEpisodes,
+      data: normalizedEpisodes,
       meta: {
         requestId,
         timestamp: new Date().toISOString(),
         pagination: {
           page: 1,
-          pageSize: sanitizedEpisodes.length,
-          total: sanitizedEpisodes.length,
+          pageSize: normalizedEpisodes.length,
+          total: normalizedEpisodes.length,
         },
       },
       error: null,
@@ -144,7 +147,7 @@ export async function GET(
       requestId,
       requestedDramaId: normalizedId,
       dramaId: drama.id,
-      count: sanitizedEpisodes.length,
+      count: normalizedEpisodes.length,
       latencyMs: Date.now() - startTime,
     });
 

@@ -528,7 +528,7 @@ export class DramaNovaAdapter extends GenericProviderAdapter {
         episodeNo,
         title,
         durationMs: Number(ep.durationMs ?? ep.duration ?? 0) || 0,
-        isLocked,
+        isLocked: false,
         thumbnailUrl: typeof ep.thumbnail === 'string' ? ep.thumbnail : undefined,
       };
     });

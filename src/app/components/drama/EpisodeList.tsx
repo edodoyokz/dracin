@@ -22,7 +22,8 @@ export function EpisodeList({
     return (
         <div className="flex flex-wrap gap-2">
             {episodes.map((ep) => {
-                const isLocked = ep.isLocked && !isPremium;
+                const isDramaNova = providerSlug.toLowerCase() === 'dramanova';
+                const isLocked = isDramaNova ? false : (ep.isLocked && !isPremium);
                 const isWatched = watchedEpisodes.includes(ep.episodeNo);
 
                 return (
