@@ -90,10 +90,7 @@ export async function getDramasByProvider(
 
     let query = supabase
         .from('dramas')
-        .select(`
-      *,
-      providers!inner(name)
-    `, { count: 'exact' })
+        .select('*', { count: 'exact' })
         .eq('provider_slug', providerSlug);
 
     // Filter by genre if specified
@@ -123,7 +120,7 @@ export async function getDramasByProvider(
         rating: drama.popularity_score ? parseFloat(drama.popularity_score.toString()) : undefined,
         tags: drama.tags || [],
         isPremium: drama.is_premium,
-        providerName: drama.providers?.name || drama.provider_slug,
+        providerName: providerSlug,
         vipLevel: 'VIP9',
     }));
 
