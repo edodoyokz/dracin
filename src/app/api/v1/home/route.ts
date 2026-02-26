@@ -8,12 +8,13 @@ import {
   getForYouDramas,
   type DbDrama
 } from '@/lib/db/dramas';
+import { getActiveProviders } from '@/lib/db/providers-db';
 import { getSupabaseClient } from '@/lib/db/client';
 import { logger, generateRequestId } from '@/lib/observability/logger';
 import { preflightEnvCheck } from '@/lib/config/env';
 import { getCacheManager } from '@/lib/cache/redis';
-import { fetchHomeFromProviders, getAllProviderInfo } from '@/lib/services/provider-aggregator';
-import type { ApiResponse, HomeResponseData, NewReleaseGroup, ContinueWatchingItem, GenreData, DramaCard } from '@/lib/types';
+import { fetchHomeFromProviders } from '@/lib/services/provider-aggregator';
+import type { ApiResponse, HomeResponseData, NewReleaseGroup, ContinueWatchingItem, GenreData, DramaCard, ProviderInfo } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,22 +128,30 @@ export async function GET(request: Request): Promise<NextResponse> {
     
     const mergedProviderSections = Array.from(sectionMap.values());
 
-    // Get all provider info (41 active providers)
-    const allProviders = getAllProviderInfo();
+    // Get all active providers with content count from database
+    const allProviders = await getActiveProviders();
+
+    // Map to ProviderInfo type
+    const providersInfo: ProviderInfo[] = allProviders.map(p => ({
+      slug: p.slug,
+      name: p.name,
+      contentCount: p.dramaCount,
+      isNew: false,
+    }));
 
     // Ensure every active provider appears on homepage sections
     const mergedSectionMap = new Map(
       mergedProviderSections.map((section) => [section.provider.slug, section])
     );
 
-    const completeProviderSections = allProviders.map((provider) => {
+    const completeProviderSections = providersInfo.map((provider) => {
       const existing = mergedSectionMap.get(provider.slug);
       if (existing) {
         return {
           ...existing,
           provider: {
             ...existing.provider,
-            contentCount: existing.totalCount,
+            contentCount: provider.contentCount,
           },
         };
       }
@@ -151,7 +160,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         provider: {
           slug: provider.slug,
           name: provider.name,
-          contentCount: 0,
+          contentCount: provider.contentCount,
         },
         dramas: [],
         totalCount: 0,
@@ -166,7 +175,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       newReleases,
       providerSections: completeProviderSections,
       genres,
-      providers: allProviders,
+      providers: providersInfo,
     };
 
     // Cache the response
