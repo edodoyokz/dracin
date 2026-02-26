@@ -436,6 +436,55 @@ export class DramaNovaAdapter extends GenericProviderAdapter {
     super('DramaNova', 'dramanova', 'VIP9');
   }
 
+  // DramaNova home - use drama list or recommend
+  mapHome(response: unknown): DramaCard[] {
+    const unwrapped = this.unwrapResponse(response);
+
+    // Handle array response from /api/v1/dramas
+    if (Array.isArray(unwrapped)) {
+      return unwrapped.map(item => this.mapToDramaCard(item)).filter(Boolean) as DramaCard[];
+    }
+
+    // Handle object with data/list
+    if (unwrapped && typeof unwrapped === 'object') {
+      const resp = unwrapped as Record<string, unknown>;
+      if (Array.isArray(resp.data)) {
+        return resp.data.map(item => this.mapToDramaCard(item)).filter(Boolean) as DramaCard[];
+      }
+      if (Array.isArray(resp.list)) {
+        return resp.list.map(item => this.mapToDramaCard(item)).filter(Boolean) as DramaCard[];
+      }
+    }
+
+    return super.mapHome(response);
+  }
+
+  // DramaNova search has enriched metadata
+  mapSearch(response: unknown): DramaCard[] {
+    const unwrapped = this.unwrapResponse(response);
+
+    if (Array.isArray(unwrapped)) {
+      return unwrapped.map(item => {
+        if (!item || typeof item !== 'object') return null;
+        const obj = item as Record<string, unknown>;
+
+        // Use base mapping first
+        const baseCard = this.mapToDramaCard(item);
+        if (!baseCard) return null;
+
+        // Enrich with additional metadata from search response
+        return {
+          ...baseCard,
+          episodeCount: Number(obj.episodes ?? obj.episodeCount ?? 0),
+          // Search results may have different field names
+          coverUrl: this.extractString(obj, ['cover', 'coverUrl', 'poster', 'thumbnail', 'image']) || baseCard.coverUrl,
+        };
+      }).filter(Boolean) as DramaCard[];
+    }
+
+    return super.mapSearch(response);
+  }
+
   // DramaNova episodes are usually embedded in detail payload
   mapEpisodes(response: unknown): EpisodeItem[] {
     const resp = response as Record<string, unknown>;
@@ -459,7 +508,7 @@ export class DramaNovaAdapter extends GenericProviderAdapter {
 
     return episodes.map((ep, index) => {
       const episodeNo = Number(ep.number ?? ep.episodeNo ?? ep.ep ?? ep.serial_number) || index + 1;
-      const providerEpisodeId = String(ep.ep ?? ep.episodeNo ?? ep.number ?? ep.id ?? episodeNo);
+      const providerEpisodeId = String(ep.id ?? ep.ep ?? ep.episodeNo ?? ep.number ?? episodeNo);
       const title = String(ep.title ?? ep.name ?? `Episode ${episodeNo}`);
 
       const freeValue = ep.free ?? ep.isFree ?? ep.is_free ?? ep.canWatch;
@@ -485,8 +534,79 @@ export class DramaNovaAdapter extends GenericProviderAdapter {
     });
   }
 
+  // DramaNova playback with subtitle support
   mapPlayback(response: unknown): PlaybackResponse {
-    return super.mapPlayback(response);
+    const unwrapped = this.unwrapResponse(response);
+
+    if (!unwrapped || typeof unwrapped !== 'object') {
+      throw new Error('Invalid playback response');
+    }
+
+    const obj = unwrapped as Record<string, unknown>;
+
+    // Extract video URL - DramaNova uses "video" field
+    let streamUrl = this.extractString(obj, [
+      'video', 'videoUrl', 'streamUrl', 'url', 'playUrl', 'src', 'm3u8', 'mp4'
+    ]);
+
+    if (!streamUrl) {
+      throw new Error('No stream URL found in playback response');
+    }
+
+    // Extract expiration
+    let expiresAt = this.extractString(obj, ['expiresAt', 'expireAt', 'expireTime', 'expiration']);
+    if (!expiresAt) {
+      expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(); // 2 hours default
+    }
+
+    // Extract subtitles from DramaNova format
+    const subtitles = this.extractDramaNovaSubtitles(obj);
+
+    return {
+      streamUrl,
+      expiresAt,
+      subtitles,
+    };
+  }
+
+  /**
+   * Extract DramaNova subtitle format
+   * Format: { "lang": "in", "url": "https://...srt" }
+   */
+  private extractDramaNovaSubtitles(obj: Record<string, unknown>): Array<{ src: string; srclang: string; label: string; default?: boolean }> | undefined {
+    const subtitlesValue = obj.subtitles || obj.subtitle || obj.captions;
+
+    if (!Array.isArray(subtitlesValue) || subtitlesValue.length === 0) {
+      return undefined;
+    }
+
+    return subtitlesValue.map((sub: unknown) => {
+      if (typeof sub !== 'object' || sub === null) return null;
+      const subObj = sub as Record<string, unknown>;
+
+      const lang = this.extractString(subObj, ['lang', 'language', 'locale', 'code']) || 'id';
+      const url = this.extractString(subObj, ['url', 'src', 'file', 'vtt', 'srt']);
+
+      if (!url) return null;
+
+      // Map language codes to labels
+      const langLabels: Record<string, string> = {
+        'in': 'Indonesia',
+        'id': 'Indonesia',
+        'en': 'English',
+        'zh': '中文',
+        'ms': 'Melayu',
+        'th': 'ไทย',
+        'vi': 'Tiếng Việt',
+      };
+
+      return {
+        src: url,
+        srclang: lang,
+        label: langLabels[lang] || lang,
+        default: lang === 'in' || lang === 'id',
+      };
+    }).filter((sub): sub is NonNullable<typeof sub> => sub !== null);
   }
 }
 
