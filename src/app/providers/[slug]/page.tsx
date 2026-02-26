@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import PageHeader from '../../components/layout/PageHeader';
 import { ProviderHeader } from '../../components/pages/ProviderHeader';
@@ -7,9 +8,12 @@ import { GenreFilterTabs } from '../../components/pages/GenreFilterTabs';
 import { DramaCard } from '../../components/home/DramaCard';
 import { useProvider } from '../../../hooks/useProvider';
 
+type TabType = 'all' | 'trending' | 'new';
+
 export default function ProviderPage() {
     const params = useParams();
     const slug = params.slug as string;
+    const [activeTab, setActiveTab] = useState<TabType>('all');
     const {
         provider,
         dramas,
@@ -21,6 +25,29 @@ export default function ProviderPage() {
         onGenreChange,
         loadMore,
     } = useProvider(slug);
+
+    // Filter dramas based on active tab
+    const filteredDramas = (() => {
+        switch (activeTab) {
+            case 'trending':
+                return [...dramas].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+            case 'new':
+                return [...dramas].sort((a, b) => {
+                    // Sort by ID (newer IDs are typically larger)
+                    const idA = parseInt(a.providerDramaId) || 0;
+                    const idB = parseInt(b.providerDramaId) || 0;
+                    return idB - idA;
+                });
+            default:
+                return dramas;
+        }
+    })();
+
+    const tabs: { id: TabType; label: string }[] = [
+        { id: 'all', label: 'Semua' },
+        { id: 'trending', label: 'Trending' },
+        { id: 'new', label: 'Terbaru' },
+    ];
 
     return (
         <main className="min-h-screen bg-neutral-950 pb-24">
@@ -67,8 +94,29 @@ export default function ProviderPage() {
                     </div>
                 )}
 
+                {/* Tabs Navigation */}
+                {!loading && provider && (
+                    <div className="px-4 mt-4">
+                        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+                            {tabs.map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+                                        activeTab === tab.id
+                                            ? 'bg-red-600 text-white'
+                                            : 'bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white'
+                                    }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Genre Filter Tabs */}
-                {!loading && genres.length > 0 && (
+                {!loading && genres.length > 0 && activeTab === 'all' && (
                     <div className="px-4 mt-4">
                         <GenreFilterTabs
                             genres={genres}
@@ -81,7 +129,7 @@ export default function ProviderPage() {
                 {/* Drama Grid */}
                 <div className="px-4 mt-6">
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        {dramas.map((drama) => (
+                        {filteredDramas.map((drama) => (
                             <DramaCard key={drama.id} drama={drama} />
                         ))}
 
@@ -98,7 +146,7 @@ export default function ProviderPage() {
                     </div>
 
                     {/* Empty State */}
-                    {!loading && !error && dramas.length === 0 && (
+                    {!loading && !error && filteredDramas.length === 0 && (
                         <div className="flex flex-col items-center justify-center py-16 text-center">
                             <div className="w-20 h-20 bg-neutral-800 rounded-full flex items-center justify-center mb-4">
                                 <svg className="w-10 h-10 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

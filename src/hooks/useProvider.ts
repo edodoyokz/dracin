@@ -55,8 +55,8 @@ export function useProvider(slug: string) {
             const response = await fetch(`/api/v1/providers/${slug}?${params}`);
             const result = await response.json();
 
-            if (!result.success) {
-                throw new Error(result.error?.message || 'Failed to fetch provider');
+            if (result.error) {
+                throw new Error(result.error.message || 'Failed to fetch provider');
             }
 
             setState(prev => ({
