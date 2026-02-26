@@ -13,39 +13,40 @@ export const providers = pgTable('providers', {
     id: uuid('id').primaryKey().defaultRandom(),
     slug: text('slug').unique().notNull(),
     name: text('name').notNull(),
-    vipGroup: text('vip_group'),
+    vip_group: text('vip_group'),
     status: providerStatusEnum('status').default('active').notNull(),
     endpoints: jsonb('endpoints'),
     capabilities: jsonb('capabilities'),
-    lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    last_synced_at: timestamp('last_synced_at', { withTimezone: true }),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+/**
 /**
  * Dramas table - stores drama/series information
  */
 export const dramas = pgTable('dramas', {
     id: uuid('id').primaryKey().defaultRandom(),
-    providerSlug: text('provider_slug').notNull().references(() => providers.slug),
-    providerDramaId: text('provider_drama_id').notNull(),
+    provider_slug: text('provider_slug').notNull().references(() => providers.slug),
+    provider_drama_id: text('provider_drama_id').notNull(),
     title: text('title').notNull(),
     synopsis: text('synopsis'),
-    coverUrl: text('cover_url'),
-    coverUrls: jsonb('cover_urls'),
+    cover_url: text('cover_url'),
+    cover_urls: jsonb('cover_urls'),
     language: text('language'),
     genres: jsonb('genres'),
     tags: jsonb('tags'),
-    episodeCount: integer('episode_count'),
-    isPremium: boolean('is_premium').default(false).notNull(),
-    popularityScore: numeric('popularity_score'),
-    lastProviderUpdate: timestamp('last_provider_update', { withTimezone: true }),
-    lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    episode_count: integer('episode_count'),
+    is_premium: boolean('is_premium').default(false).notNull(),
+    popularity_score: numeric('popularity_score'),
+    last_provider_update: timestamp('last_provider_update', { withTimezone: true }),
+    last_synced_at: timestamp('last_synced_at', { withTimezone: true }),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
     providerDramaUnique: {
-        columns: [table.providerSlug, table.providerDramaId],
+        columns: [table.provider_slug, table.provider_drama_id],
         name: 'dramas_provider_slug_provider_drama_id_key',
     },
 }));
@@ -55,18 +56,18 @@ export const dramas = pgTable('dramas', {
  */
 export const episodes = pgTable('episodes', {
     id: uuid('id').primaryKey().defaultRandom(),
-    dramaId: uuid('drama_id').notNull().references(() => dramas.id, { onDelete: 'cascade' }),
-    providerSlug: text('provider_slug').notNull().references(() => providers.slug),
-    providerEpisodeId: text('provider_episode_id'),
-    episodeNo: integer('episode_no'),
-    chapterId: text('chapter_id'),
+    drama_id: uuid('drama_id').notNull().references(() => dramas.id, { onDelete: 'cascade' }),
+    provider_slug: text('provider_slug').notNull().references(() => providers.slug),
+    provider_episode_id: text('provider_episode_id'),
+    episode_no: integer('episode_no'),
+    chapter_id: text('chapter_id'),
     slug: text('slug'),
     title: text('title'),
-    durationMs: integer('duration_ms'),
-    isLocked: boolean('is_locked').default(false).notNull(),
-    lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    duration_ms: integer('duration_ms'),
+    is_locked: boolean('is_locked').default(false).notNull(),
+    last_synced_at: timestamp('last_synced_at', { withTimezone: true }),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 /**
@@ -82,7 +83,7 @@ export const providersRelations = relations(providers, ({ many }) => ({
  */
 export const dramasRelations = relations(dramas, ({ one, many }) => ({
     provider: one(providers, {
-        fields: [dramas.providerSlug],
+        fields: [dramas.provider_slug],
         references: [providers.slug],
     }),
     episodes: many(episodes),
@@ -93,11 +94,11 @@ export const dramasRelations = relations(dramas, ({ one, many }) => ({
  */
 export const episodesRelations = relations(episodes, ({ one }) => ({
     drama: one(dramas, {
-        fields: [episodes.dramaId],
+        fields: [episodes.drama_id],
         references: [dramas.id],
     }),
     provider: one(providers, {
-        fields: [episodes.providerSlug],
+        fields: [episodes.provider_slug],
         references: [providers.slug],
     }),
 }));
