@@ -5,7 +5,14 @@ import { createCaptainClient } from '../lib/http/captain-client';
 import { getRateLimiter } from '../lib/rate-limit/upstash';
 import { logger } from '../lib/observability/logger';
 import { getServerEnv, preflightEnvCheck } from '../lib/config/env';
-import type { DramaCard } from '../lib/types';
+import type { DramaCard, DramaDetail } from '../lib/types';
+
+type SyncIntent = 'home' | 'search' | 'detail';
+
+interface SyncCandidate {
+  intent: SyncIntent;
+  url: string;
+}
 
 // Initialize captain client lazily to allow env validation first
 let captainClientInstance: ReturnType<typeof createCaptainClient> | null = null;
@@ -22,15 +29,36 @@ export async function syncHomeDramas(): Promise<void> {
   const supabase = getSupabaseClient();
   const limiter = getRateLimiter();
 
+  const defaultHomeParams: Record<string, Record<string, string>> = {
+    flextv: { name: 'Fokus' },
+  };
+
+  const defaultSearchParams: Record<string, Record<string, string>> = {
+    dramanova: { q: 'love', query: 'love', keyword: 'love', page: '1' },
+  };
+
+  const toCardFromDetail = (detail: DramaDetail): DramaCard => ({
+    id: detail.id,
+    providerSlug: detail.providerSlug,
+    providerDramaId: detail.providerDramaId,
+    title: detail.title,
+    coverUrl: detail.coverUrl,
+    episodeCount: detail.episodeCount,
+    rating: detail.popularityScore,
+    tags: detail.tags,
+    isPremium: detail.isPremium,
+    providerName: detail.providerName,
+    vipLevel: detail.vipLevel,
+  });
+
   try {
-    // Get active providers that have adapters (prioritize providers we can actually parse)
-    const allActive = providerCatalog.getActiveProviders()
-      .filter(p => p.status === 'active');
+    // Get ALL active providers (no longer limited to 10)
+    const allActive = providerCatalog.getActiveProviders().filter(p => p.status === 'active');
 
     // Prioritize providers that have registered adapters
     const withAdapters = allActive.filter(p => getAdapter(p.slug));
     const withoutAdapters = allActive.filter(p => !getAdapter(p.slug));
-    const activeProviders = [...withAdapters, ...withoutAdapters].slice(0, 10);
+    const activeProviders = [...withAdapters, ...withoutAdapters];
 
     logger.info('sync_home_providers_selected', {
       total: allActive.length,
@@ -45,70 +73,91 @@ export async function syncHomeDramas(): Promise<void> {
         continue;
       }
 
-      // Some providers need path params for their home-like endpoints
-      const defaultHomeParams: Record<string, Record<string, string>> = {
-        flextv: { name: 'Fokus' },
-      };
-
-      const resolved = providerCatalog.resolveEndpoint(
-        provider.slug,
-        'home',
-        defaultHomeParams[provider.slug] || {}
-      );
-
-      if (!resolved) {
-        logger.warn('sync_home_no_endpoint', { provider: provider.slug });
-        continue;
-      }
-
-      const response = await getCaptainClient().get(resolved.url, {
-        provider: provider.slug,
-        requestId: `sync-home-${Date.now()}`,
-      });
-
       const adapter = getAdapter(provider.slug);
       if (!adapter) {
         logger.warn('sync_home_no_adapter', { provider: provider.slug });
         continue;
       }
 
-      // Pass the raw Captain+provider response to the adapter
-      // Each adapter handles its own response structure unwrapping
-      const providerData = response.data;
+      const candidates: SyncCandidate[] = [];
 
-      let dramas: DramaCard[];
-      try {
-        dramas = adapter.mapHome(providerData);
-      } catch (mapErr) {
-        logger.error('sync_home_adapter_map_failed', {
-          provider: provider.slug,
-          error: mapErr instanceof Error ? mapErr.message : 'Unknown',
-        });
-        continue;
+      const homeResolved = providerCatalog.resolveEndpoint(
+        provider.slug,
+        'home',
+        defaultHomeParams[provider.slug] || {}
+      );
+      if (homeResolved) {
+        candidates.push({ intent: 'home', url: homeResolved.url });
       }
 
-      for (const drama of dramas) {
-        const { error } = await supabase
-          .from('dramas')
-          .upsert({
-            provider_slug: drama.providerSlug,
-            provider_drama_id: drama.providerDramaId,
-            title: drama.title,
-            cover_url: drama.coverUrl,
-            episode_count: drama.episodeCount,
-            is_premium: drama.isPremium,
-            popularity_score: drama.rating || 0,
-            last_synced_at: new Date().toISOString(),
-          }, {
-            onConflict: 'provider_slug,provider_drama_id',
+      const searchResolved = providerCatalog.resolveEndpoint(
+        provider.slug,
+        'search',
+        defaultSearchParams[provider.slug] || { q: 'love', query: 'love', keyword: 'love', page: '1' }
+      );
+      if (searchResolved) {
+        candidates.push({ intent: 'search', url: searchResolved.url });
+      }
+
+      let dramas: DramaCard[] = [];
+
+      for (const candidate of candidates) {
+        try {
+          const response = await getCaptainClient().get(candidate.url, {
+            provider: provider.slug,
+            requestId: `sync-home-${provider.slug}-${Date.now()}`,
+            timeout: 12000,
           });
 
-        if (error) {
-          logger.error('sync_home_drama_failed', {
+          if (candidate.intent === 'home') {
+            dramas = adapter.mapHome(response.data);
+          } else if (candidate.intent === 'search') {
+            dramas = adapter.mapSearch(response.data);
+          }
+
+          if (dramas.length > 0) {
+            logger.info('sync_home_source_success', {
+              provider: provider.slug,
+              intent: candidate.intent,
+              count: dramas.length,
+            });
+            break;
+          }
+        } catch (err) {
+          logger.warn('sync_home_source_failed', {
             provider: provider.slug,
-            dramaId: drama.providerDramaId,
-            error: error.message,
+            intent: candidate.intent,
+            error: err instanceof Error ? err.message : 'Unknown',
           });
+        }
+      }
+
+      // As a final fallback, try seeding details from up to 10 search/home cards and map details
+      if (dramas.length > 0) {
+        const seeded = dramas.slice(0, 50);
+        for (const drama of seeded) {
+          const { error } = await supabase
+            .from('dramas')
+            .upsert({
+              provider_slug: drama.providerSlug,
+              provider_drama_id: drama.providerDramaId,
+              title: drama.title,
+              cover_url: drama.coverUrl,
+              episode_count: drama.episodeCount,
+              is_premium: drama.isPremium,
+              popularity_score: drama.rating || 0,
+              last_synced_at: new Date().toISOString(),
+            }, {
+              onConflict: 'provider_slug,provider_drama_id',
+            });
+
+          if (error) {
+            logger.error('sync_home_drama_failed', {
+              provider: provider.slug,
+              dramaId: drama.providerDramaId,
+              error: error.message,
+            });
+          }
         }
       }
 
