@@ -144,7 +144,7 @@ async function createProfile(
         await db.insert(profiles).values({
             id: userId,
             email: email || null,
-            displayName: displayName || null,
+            display_name: displayName || null,
         }).onConflictDoNothing();
     } catch (err) {
         console.error('Failed to create profile:', err);
@@ -205,7 +205,7 @@ export async function updateUserProfile(
         await db.update(profiles)
             .set({
                 ...updates,
-                updatedAt: new Date(),
+                updated_at: new Date(),
             })
             .where(eq(profiles.id, userId));
 

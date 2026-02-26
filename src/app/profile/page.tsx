@@ -22,8 +22,8 @@ export default async function ProfilePage() {
       user={{
         id: user.id,
         email: user.email || null,
-        displayName: profile?.displayName || null,
-        avatarUrl: profile?.avatarUrl || null,
+        displayName: profile?.display_name || null,
+        avatarUrl: profile?.avatar_url || null,
       }}
     />
   );

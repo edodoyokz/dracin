@@ -30,10 +30,10 @@ export const profiles = pgTable('profiles', {
     // This ID matches auth.users.id from Supabase Auth
     id: uuid('id').primaryKey(),
     email: text('email').unique(),
-    displayName: text('display_name'),
-    avatarUrl: text('avatar_url'),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    display_name: text('display_name'),
+    avatar_url: text('avatar_url'),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 /**
@@ -41,13 +41,13 @@ export const profiles = pgTable('profiles', {
  */
 export const subscriptions = pgTable('subscriptions', {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+    user_id: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
     tier: subscriptionTierEnum('tier').notNull(),
     status: subscriptionStatusEnum('status').notNull(),
-    startedAt: timestamp('started_at', { withTimezone: true }),
-    endsAt: timestamp('ends_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    started_at: timestamp('started_at', { withTimezone: true }),
+    ends_at: timestamp('ends_at', { withTimezone: true }),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 /**
@@ -55,17 +55,19 @@ export const subscriptions = pgTable('subscriptions', {
  */
 export const watchHistory = pgTable('watch_history', {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
-    dramaId: uuid('drama_id').notNull().references(() => dramas.id, { onDelete: 'cascade' }),
-    episodeId: uuid('episode_id').references(() => episodes.id, { onDelete: 'set null' }),
-    progressSeconds: integer('progress_seconds').default(0).notNull(),
-    isCompleted: boolean('is_completed').default(false).notNull(),
-    lastWatchedAt: timestamp('last_watched_at', { withTimezone: true }).defaultNow().notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    user_id: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+    drama_id: uuid('drama_id').notNull().references(() => dramas.id, { onDelete: 'cascade' }),
+    episode_id: uuid('episode_id').references(() => episodes.id, { onDelete: 'set null' }),
+    episode_number: integer('episode_number'),
+    progress_seconds: integer('progress_seconds').default(0).notNull(),
+    progress_percent: integer('progress_percent').default(0).notNull(),
+    is_completed: boolean('is_completed').default(false).notNull(),
+    last_watched_at: timestamp('last_watched_at', { withTimezone: true }).defaultNow().notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
     userDramaEpisodeUnique: {
-        columns: [table.userId, table.dramaId, table.episodeId],
+        columns: [table.user_id, table.drama_id, table.episode_id],
         name: 'watch_history_user_id_drama_id_episode_id_key',
     },
 }));
@@ -75,15 +77,15 @@ export const watchHistory = pgTable('watch_history', {
  */
 export const reports = pgTable('reports', {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id').references(() => profiles.id, { onDelete: 'set null' }),
-    providerSlug: text('provider_slug'),
-    providerDramaId: text('provider_drama_id'),
-    providerEpisodeId: text('provider_episode_id'),
+    user_id: uuid('user_id').references(() => profiles.id, { onDelete: 'set null' }),
+    provider_slug: text('provider_slug'),
+    provider_drama_id: text('provider_drama_id'),
+    provider_episode_id: text('provider_episode_id'),
     reason: text('reason').notNull(),
     notes: text('notes'),
     status: reportStatusEnum('status').default('open').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 /**
@@ -91,12 +93,12 @@ export const reports = pgTable('reports', {
  */
 export const bookmarks = pgTable('bookmarks', {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
-    dramaId: uuid('drama_id').notNull().references(() => dramas.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    user_id: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+    drama_id: uuid('drama_id').notNull().references(() => dramas.id, { onDelete: 'cascade' }),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
     userDramaUnique: {
-        columns: [table.userId, table.dramaId],
+        columns: [table.user_id, table.drama_id],
         name: 'bookmarks_user_id_drama_id_key',
     },
 }));
@@ -106,7 +108,7 @@ export const bookmarks = pgTable('bookmarks', {
  */
 export const profilesRelations = relations(profiles, ({ many }) => ({
     subscriptions: many(subscriptions),
-    watchHistory: many(watchHistory),
+    watch_history: many(watchHistory),
     reports: many(reports),
     bookmarks: many(bookmarks),
 }));
@@ -116,7 +118,7 @@ export const profilesRelations = relations(profiles, ({ many }) => ({
  */
 export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
     user: one(profiles, {
-        fields: [subscriptions.userId],
+        fields: [subscriptions.user_id],
         references: [profiles.id],
     }),
 }));
@@ -126,15 +128,15 @@ export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
  */
 export const watchHistoryRelations = relations(watchHistory, ({ one }) => ({
     user: one(profiles, {
-        fields: [watchHistory.userId],
+        fields: [watchHistory.user_id],
         references: [profiles.id],
     }),
     drama: one(dramas, {
-        fields: [watchHistory.dramaId],
+        fields: [watchHistory.drama_id],
         references: [dramas.id],
     }),
     episode: one(episodes, {
-        fields: [watchHistory.episodeId],
+        fields: [watchHistory.episode_id],
         references: [episodes.id],
     }),
 }));
@@ -144,7 +146,7 @@ export const watchHistoryRelations = relations(watchHistory, ({ one }) => ({
  */
 export const reportsRelations = relations(reports, ({ one }) => ({
     user: one(profiles, {
-        fields: [reports.userId],
+        fields: [reports.user_id],
         references: [profiles.id],
     }),
 }));
@@ -154,11 +156,11 @@ export const reportsRelations = relations(reports, ({ one }) => ({
  */
 export const bookmarksRelations = relations(bookmarks, ({ one }) => ({
     user: one(profiles, {
-        fields: [bookmarks.userId],
+        fields: [bookmarks.user_id],
         references: [profiles.id],
     }),
     drama: one(dramas, {
-        fields: [bookmarks.dramaId],
+        fields: [bookmarks.drama_id],
         references: [dramas.id],
     }),
 }));
