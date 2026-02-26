@@ -58,7 +58,8 @@ export async function GET(request: Request): Promise<NextResponse> {
     const cache = getCacheManager();
 
     // Try to get cached data
-    const cacheKey = `home:sections:v1:${userId || 'guest'}`;
+    // Note: v2 cache key to bust old cached data with duplicate provider sections
+    const cacheKey = `home:sections:v2:${userId || 'guest'}`;
     const cached = await cache.get<HomeResponseData>(cacheKey);
 
     if (cached) {
@@ -110,8 +111,21 @@ export async function GET(request: Request): Promise<NextResponse> {
     // Group new releases by time period
     const newReleases = groupNewReleases(newReleasesData);
 
-    // Merge static and dynamic provider sections
-    const mergedProviderSections = [...providerSections, ...dynamicProviderSections];
+    // Merge static and dynamic provider sections with deduplication
+    // Prefer dynamic sections (from API) over static sections (from DB)
+    const sectionMap = new Map<string, typeof providerSections[0]>();
+    
+    // Add static sections first
+    for (const section of providerSections) {
+      sectionMap.set(section.provider.slug, section);
+    }
+    
+    // Add dynamic sections (will override static if same provider)
+    for (const section of dynamicProviderSections) {
+      sectionMap.set(section.provider.slug, section);
+    }
+    
+    const mergedProviderSections = Array.from(sectionMap.values());
 
     // Get all provider info (41 active providers)
     const allProviders = getAllProviderInfo();
@@ -386,14 +400,24 @@ function buildProviderSectionsFromResults(
 
   for (const result of results) {
     if (result.success && result.dramas.length > 0) {
+      // Deduplicate dramas by ID within this provider
+      const seenIds = new Set<string>();
+      const uniqueDramas = result.dramas.filter(drama => {
+        if (seenIds.has(drama.id)) {
+          return false;
+        }
+        seenIds.add(drama.id);
+        return true;
+      });
+
       sections.push({
         provider: {
           slug: result.provider,
           name: result.providerName,
-          contentCount: result.dramas.length,
+          contentCount: uniqueDramas.length,
         },
-        dramas: result.dramas.slice(0, 10), // Limit to 10 per section
-        totalCount: result.dramas.length,
+        dramas: uniqueDramas.slice(0, 10), // Limit to 10 per section
+        totalCount: uniqueDramas.length,
       });
     }
   }

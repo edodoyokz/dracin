@@ -75,7 +75,7 @@ export class GenericProviderAdapter extends BaseProviderAdapter implements Provi
   /**
    * Extract string value from object with fallback
    */
-  private extractString(obj: unknown, fields: string[], fallback: string = ''): string {
+  protected extractString(obj: unknown, fields: string[], fallback: string = ''): string {
     if (typeof obj !== 'object' || obj === null) return fallback;
 
     for (const field of fields) {
@@ -126,7 +126,7 @@ export class GenericProviderAdapter extends BaseProviderAdapter implements Provi
   /**
    * Map a single item to DramaCard
    */
-  private mapToDramaCard(item: unknown): DramaCard | null {
+  protected mapToDramaCard(item: unknown): DramaCard | null {
     if (!item || typeof item !== 'object') return null;
 
     const obj = item as Record<string, unknown>;
@@ -141,7 +141,9 @@ export class GenericProviderAdapter extends BaseProviderAdapter implements Provi
     // Extract cover URL
     const coverUrl = this.extractString(obj, [
       'coverUrl', 'cover', 'poster', 'thumbnail', 'imageUrl', 'image',
-      'cover_url', 'posterUrl', 'thumb', 'imgUrl', 'img'
+      'cover_url', 'posterUrl', 'thumb', 'imgUrl', 'img',
+      'drama_cover', // For MeloShort
+      'pday' // For DotDrama (if using generic adapter)
     ]);
 
     // Extract episode count
@@ -261,7 +263,7 @@ export class GenericProviderAdapter extends BaseProviderAdapter implements Provi
   mapEpisodes(response: unknown): EpisodeItem[] {
     const patterns = [
       'data.episodes', 'data.chapters', 'data.list', 'data.items',
-      'episodes', 'chapters', 'list', 'items', 'data'
+      'episodes', 'chapters', 'list', 'items', 'data', 'episode_list'
     ];
 
     const items = this.extractArray(response, patterns);
@@ -279,19 +281,26 @@ export class GenericProviderAdapter extends BaseProviderAdapter implements Provi
       // Extract episode number (use index as fallback)
       let episodeNo = this.extractNumber(obj, [
         'episodeNo', 'episodeNumber', 'number', 'epNo', 'ep', 'chapterNo', 'chapterNumber',
-        'episode_no', 'episode_number', 'seq', 'sequence'
+        'episode_no', 'episode_number', 'seq', 'sequence',
+        'chapter_num', // FlickReels
+        'serial_number' // ReelShort
       ]);
       if (!episodeNo) episodeNo = index + 1;
 
       // Extract title
       const title = this.extractString(obj, [
-        'title', 'name', 'episodeTitle', 'chapterTitle', 'episode_title', 'chapter_title'
+        'title', 'name', 'episodeTitle', 'chapterTitle', 'episode_title', 'chapter_title',
+        'chapterName', // GoodShort
+        'chapter_title' // FlickReels
       ]);
 
-      // Extract duration
-      const durationMs = this.extractNumber(obj, [
+      // Extract duration (some providers return seconds, some return ms)
+      let duration = this.extractNumber(obj, [
         'durationMs', 'duration', 'length', 'playTime', 'play_time', 'time'
       ]);
+      
+      // Convert to ms if duration is too small (assuming seconds)
+      const durationMs = duration > 0 && duration < 1000 ? duration * 1000 : duration;
 
       // Check if locked
       const isLocked = this.extractBoolean(obj, [

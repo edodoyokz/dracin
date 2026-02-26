@@ -44,12 +44,18 @@ export function DramaCard({
         >
             <div className="relative aspect-2/3 rounded-xl overflow-hidden mb-2 ring-1 ring-white/10 shadow-lg transition-all duration-300 group-hover:ring-red-500/40 group-hover:shadow-[0_12px_30px_-12px_rgba(239,68,68,0.5)] group-focus-visible:ring-red-500/60">
                 {/* Cover Image */}
-                <img
-                    src={drama.coverUrl}
-                    alt={drama.title}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    loading="lazy"
-                />
+                {drama.coverUrl ? (
+                    <img
+                        src={drama.coverUrl}
+                        alt={drama.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        loading="lazy"
+                    />
+                ) : (
+                    <div className="w-full h-full bg-neutral-800 flex items-center justify-center">
+                        <span className="text-neutral-600 text-xs">No Image</span>
+                    </div>
+                )}
 
                 {/* Hover Overlay */}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors duration-300" />

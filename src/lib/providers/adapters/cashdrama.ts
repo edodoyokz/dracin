@@ -144,12 +144,37 @@ export class CashDramaAdapter extends BaseProviderAdapter {
   }
 
   mapEpisodes(response: unknown): EpisodeItem[] {
-    const resp = response as CashDramaEpisodesResponse;
-    const episodes = resp?.data || resp?.episodes || resp?.list || (Array.isArray(response) ? response as CashDramaEpisode[] : []);
+    const rawResp = response as Record<string, unknown>;
+    
+    // CashDrama response structure: { success: true, data: { info: {}, episodes: [] } }
+    let episodes: CashDramaEpisode[] = [];
+    
+    // Extract episodes from various possible response structures
+    const data = rawResp?.data as Record<string, unknown>;
+    
+    if (data?.episodes && Array.isArray(data.episodes)) {
+      episodes = data.episodes as CashDramaEpisode[];
+    } else if (rawResp?.episodes && Array.isArray(rawResp.episodes)) {
+      episodes = rawResp.episodes as CashDramaEpisode[];
+    } else if (data?.list && Array.isArray(data.list)) {
+      episodes = data.list as CashDramaEpisode[];
+    } else if (rawResp?.list && Array.isArray(rawResp.list)) {
+      episodes = rawResp.list as CashDramaEpisode[];
+    } else if (Array.isArray(response)) {
+      episodes = response as CashDramaEpisode[];
+    }
 
     return episodes.map(ep => {
-      const epId = ep.id || ep.episodeId || ep.vid || `${ep.ep || ep.episodeNo || ep.number}`;
-      const epNo = ep.ep || ep.episodeNo || ep.number || 0;
+      const idStr = ep.id ? String(ep.id) : null;
+      const episodeIdStr = ep.episodeId ? String(ep.episodeId) : null;
+      const vidStr = ep.vid ? String(ep.vid) : null;
+      const epStr = ep.ep ? String(ep.ep) : null;
+      const episodeNoStr = ep.episodeNo ? String(ep.episodeNo) : null;
+      const numberStr = ep.number ? String(ep.number) : null;
+      
+      const epId = (idStr || episodeIdStr || vidStr || epStr || episodeNoStr || numberStr || 'unknown') as string;
+      const epNo = (typeof ep.ep === 'string' ? parseInt(ep.ep) : 0) || ep.episodeNo || ep.number || 0;
+      
       return {
         episodeId: `${this.slug}:${epId}`,
         providerEpisodeId: epId,

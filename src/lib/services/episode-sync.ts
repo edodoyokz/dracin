@@ -28,7 +28,7 @@ export async function syncEpisodesFromProvider(
 
   try {
     // Resolve episodes endpoint
-    const resolved = providerCatalog.resolveEndpoint(providerSlug, 'episodes', {
+    let resolved = providerCatalog.resolveEndpoint(providerSlug, 'episodes', {
       id: providerDramaId,
       dramaId: providerDramaId,
       bookId: providerDramaId,
@@ -37,13 +37,32 @@ export async function syncEpisodesFromProvider(
       code: providerDramaId,
     });
 
+    // Fallback to detail endpoint if episodes endpoint doesn't exist
+    // (Some providers like DramaNova include episodes in detail response)
     if (!resolved) {
-      logger.warn('episode_sync_no_endpoint', {
+      resolved = providerCatalog.resolveEndpoint(providerSlug, 'detail', {
+        id: providerDramaId,
+        dramaId: providerDramaId,
+        bookId: providerDramaId,
+        seriesId: providerDramaId,
+        vid: providerDramaId,
+        code: providerDramaId,
+      });
+
+      if (!resolved) {
+        logger.warn('episode_sync_no_endpoint', {
+          requestId,
+          provider: providerSlug,
+          providerDramaId,
+        });
+        return null;
+      }
+
+      logger.info('episode_sync_using_detail_endpoint', {
         requestId,
         provider: providerSlug,
         providerDramaId,
       });
-      return null;
     }
 
     // Fetch from provider API

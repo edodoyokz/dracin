@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getEpisodesByDramaId, getDramaById, getDramaByProviderId } from '@/lib/db/dramas';
 import { getEpisodesWithFallback } from '@/lib/services/episode-sync';
+import { syncDramaFromProvider } from '@/lib/services/drama-sync';
 import { syncEpisodes } from '@/jobs/sync-episodes';
 import { logger, generateRequestId } from '@/lib/observability/logger';
 import { validatePathParams, dramaDetailPathSchema } from '@/lib/validation/schemas';
@@ -43,6 +44,17 @@ export async function GET(
 
       if (providerSlug && providerDramaId) {
         drama = await getDramaByProviderId(providerSlug, providerDramaId);
+
+        // If drama not found in DB, try to sync from provider API
+        if (!drama) {
+          logger.info('drama_not_in_db_attempting_sync', {
+            requestId,
+            provider: providerSlug,
+            providerDramaId,
+          });
+
+          drama = await syncDramaFromProvider(providerSlug, providerDramaId, requestId);
+        }
       }
     }
 
