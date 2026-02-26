@@ -21,7 +21,7 @@ export function PlaybackSettings({ isOpen, onClose, playback }: PlaybackSettings
     const qualityOptions = ['Auto', '1080p', '720p', '480p', '360p'];
 
     return (
-        <div className="absolute inset-0 z-160 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="absolute inset-0 z-[170] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-zinc-900/95 backdrop-blur-xl rounded-2xl w-full max-w-sm mx-4 shadow-2xl border border-white/10 overflow-hidden animate-in zoom-in-95 duration-200">
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-white/10">

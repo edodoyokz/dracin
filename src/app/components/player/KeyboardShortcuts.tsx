@@ -146,7 +146,7 @@ export function KeyboardShortcutsHelp({ isOpen, onClose }: KeyboardShortcutsHelp
         return (
             <button
                 onClick={() => setShowHint(false)}
-                className="absolute bottom-4 left-4 z-130 flex items-center gap-2 px-3 py-2 bg-black/60 backdrop-blur-md rounded-lg text-white/70 text-sm hover:bg-black/80 transition-colors"
+                className="absolute bottom-4 left-4 z-[155] flex items-center gap-2 px-3 py-2 bg-black/60 backdrop-blur-md rounded-lg text-white/70 text-sm hover:bg-black/80 transition-colors"
             >
                 <Keyboard size={16} />
                 <span>Tekan ? untuk bantuan</span>
@@ -159,7 +159,7 @@ export function KeyboardShortcutsHelp({ isOpen, onClose }: KeyboardShortcutsHelp
 
     return (
         <div
-            className="absolute inset-0 z-170 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+            className="absolute inset-0 z-[185] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
             onClick={onClose}
         >
             <div

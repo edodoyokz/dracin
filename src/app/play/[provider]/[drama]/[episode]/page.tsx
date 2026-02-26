@@ -276,7 +276,7 @@ export default function PlayPage() {
     <div className="fixed inset-0 z-100 bg-black">
       {/* Header */}
       <div
-        className={`absolute top-0 left-0 right-0 z-130 p-4 bg-linear-to-b from-black/80 to-transparent transition-opacity duration-300 ${playback.showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        className={`absolute top-0 left-0 right-0 z-[160] p-4 bg-linear-to-b from-black/80 to-transparent transition-opacity duration-300 ${playback.showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
       >
         <div className="flex items-center justify-between max-w-screen-2xl mx-auto w-full">

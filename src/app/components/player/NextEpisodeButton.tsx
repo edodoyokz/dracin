@@ -20,7 +20,7 @@ export function NextEpisodeButton({
     if (countdown === null) return null;
 
     return (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-150 animate-in fade-in duration-300">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-[180] animate-in fade-in duration-300">
             <div className="bg-zinc-900/95 backdrop-blur-xl rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border border-white/10">
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
@@ -122,7 +122,7 @@ export function UpNextPreview({
     return (
         <button
             onClick={onClick}
-            className="absolute bottom-24 right-4 z-140 bg-zinc-900/90 backdrop-blur-xl rounded-xl overflow-hidden border border-white/10 shadow-xl hover:scale-105 transition-transform duration-200 group"
+            className="absolute bottom-24 right-4 z-[155] bg-zinc-900/90 backdrop-blur-xl rounded-xl overflow-hidden border border-white/10 shadow-xl hover:scale-105 transition-transform duration-200 group"
         >
             <div className="flex items-center gap-3 p-3">
                 {/* Thumbnail */}

@@ -56,7 +56,7 @@ export function BingeModeIndicator({ isActive, episodesRemaining }: BingeModeInd
     if (!isActive) return null;
 
     return (
-        <div className="absolute top-4 right-4 z-130 flex items-center gap-2 px-3 py-1.5 bg-red-600/90 backdrop-blur-sm rounded-full text-white text-sm font-medium animate-in fade-in slide-in-from-top-2">
+        <div className="absolute top-4 right-4 z-[155] flex items-center gap-2 px-3 py-1.5 bg-red-600/90 backdrop-blur-sm rounded-full text-white text-sm font-medium animate-in fade-in slide-in-from-top-2">
             <PlayCircle size={14} fill="white" />
             <span>Binge Mode</span>
             {episodesRemaining > 0 && (

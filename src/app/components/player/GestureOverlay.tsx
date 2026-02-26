@@ -114,7 +114,7 @@ export function GestureOverlay({
     };
 
     return (
-        <div className="absolute inset-0 z-120" onClick={handleTap}>
+        <div className="absolute inset-0 z-[140]" onClick={handleTap}>
             {/* Touch zones (visible only on hover for debugging) */}
             <div className="absolute inset-0 flex pointer-events-none opacity-0 hover:opacity-10 transition-opacity">
                 <div className="w-1/3 border-r border-white/20" />
@@ -243,7 +243,7 @@ export function GestureOverlayMobile({
 
     return (
         <div
-            className="absolute inset-0 z-120 touch-none"
+            className="absolute inset-0 z-[140] touch-none"
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
         >

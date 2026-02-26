@@ -115,7 +115,7 @@ export function CustomVideoControls({
 
     return (
         <div
-            className={`absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/10 to-transparent transition-opacity duration-300 ${playback.showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            className={`absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/10 to-transparent transition-opacity duration-300 z-[150] ${playback.showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
             onMouseMove={onShowControlsTemporarily}
             onClick={onShowControlsTemporarily}
