@@ -50,7 +50,7 @@ const PROVIDER_HOME_PARAMS: Record<string, Record<string, string>> = {
 const PROVIDER_HOME_QUERY_SUFFIX: Array<{ matcher: RegExp; query: string }> = [
   { matcher: /\/dramanow\/api\/v1\/search$/i, query: 'query=love' },
   { matcher: /\/dreamshort\/search\/books$/i, query: 'keyword=love' },
-  { matcher: /\/melolo\/api\/v1\/search$/i, query: 'q=love' },
+  { matcher: /\/melolo\/api\/v1\/search$/i, query: 'query=love' },
 ];
 
 function resolveHomeUrls(provider: ReturnType<typeof providerCatalog.getActiveProviders>[number]): string[] {

@@ -54,20 +54,25 @@ export class DramaPopsAdapter extends GenericProviderAdapter {
   mapHome(response: unknown): DramaCard[] {
     // DramaPops returns { success: true, data: [{ name, layout, movies: [] }] }
     const unwrapped = this.unwrapResponse(response);
-    const resp = unwrapped as Record<string, unknown>;
-    
-    let dramas: unknown[] = [];
-    
-    // Check for data array with movies
-    if (resp?.data && Array.isArray(resp.data)) {
-      for (const section of resp.data) {
-        const sectionObj = section as Record<string, unknown>;
-        if (sectionObj.movies && Array.isArray(sectionObj.movies)) {
-          dramas = [...dramas, ...sectionObj.movies];
-        }
+
+    let sections: unknown[] = [];
+    if (Array.isArray(unwrapped)) {
+      sections = unwrapped;
+    } else if (unwrapped && typeof unwrapped === 'object') {
+      const resp = unwrapped as Record<string, unknown>;
+      if (Array.isArray(resp.data)) {
+        sections = resp.data;
       }
     }
-    
+
+    const dramas: unknown[] = [];
+    for (const section of sections) {
+      const sectionObj = section as Record<string, unknown>;
+      if (Array.isArray(sectionObj.movies)) {
+        dramas.push(...sectionObj.movies);
+      }
+    }
+
     return dramas.map(item => this.mapToDramaCard(item)).filter(Boolean) as DramaCard[];
   }
 
@@ -113,23 +118,29 @@ export class FundramaAdapter extends GenericProviderAdapter {
   }
 
   mapHome(response: unknown): DramaCard[] {
-    // Fundrama returns { data: { ddriv: { lsumm: [...] } } }
+    // Fundrama returns either { data: { ddriv: { lsumm: [...] } } } or unwrapped { ddriv: { lsumm: [...] } }
     const unwrapped = this.unwrapResponse(response);
     const resp = unwrapped as Record<string, unknown>;
-    
+
     let dramas: unknown[] = [];
-    
-    // Check for nested ddriv.lsumm
-    if (resp?.data && typeof resp.data === 'object') {
-      const data = resp.data as Record<string, unknown>;
-      if (data.ddriv && typeof data.ddriv === 'object') {
-        const ddriv = data.ddriv as Record<string, unknown>;
-        if (ddriv.lsumm && Array.isArray(ddriv.lsumm)) {
+
+    const pickFrom = (root: Record<string, unknown> | undefined) => {
+      if (!root) return;
+      if (root.ddriv && typeof root.ddriv === 'object') {
+        const ddriv = root.ddriv as Record<string, unknown>;
+        if (Array.isArray(ddriv.lsumm)) {
           dramas = ddriv.lsumm;
         }
       }
+    };
+
+    if (resp && typeof resp === 'object') {
+      pickFrom(resp);
+      if (dramas.length === 0 && resp.data && typeof resp.data === 'object') {
+        pickFrom(resp.data as Record<string, unknown>);
+      }
     }
-    
+
     return dramas.map(item => this.mapToDramaCard(item)).filter(Boolean) as DramaCard[];
   }
 
