@@ -425,40 +425,57 @@ export class DramaNovaAdapter extends GenericProviderAdapter {
     super('DramaNova', 'dramanova', 'VIP9');
   }
 
-  // DramaNova episodes are in detail response, not separate endpoint
+  // DramaNova episodes are usually embedded in detail payload
   mapEpisodes(response: unknown): EpisodeItem[] {
     const resp = response as Record<string, unknown>;
-    
+
     let episodes: Record<string, unknown>[] = [];
-    
+
     if (resp?.episodes && Array.isArray(resp.episodes)) {
       episodes = resp.episodes as Record<string, unknown>[];
     } else if (resp?.data && typeof resp.data === 'object') {
       const data = resp.data as Record<string, unknown>;
       if (data.episodes && Array.isArray(data.episodes)) {
         episodes = data.episodes as Record<string, unknown>[];
+      } else if (data.list && Array.isArray(data.list)) {
+        episodes = data.list as Record<string, unknown>[];
       }
     }
 
-    return episodes.map(ep => ({
-      episodeId: `${this.slug}:${ep.id}`,
-      providerEpisodeId: String(ep.id),
-      episodeNo: Number(ep.number) || 0,
-      title: String(ep.title) || `Episode ${ep.number}`,
-      durationMs: 0,
-      isLocked: !(ep.free),
-      thumbnailUrl: undefined,
-    }));
+    if (episodes.length === 0) {
+      return super.mapEpisodes(response);
+    }
+
+    return episodes.map((ep, index) => {
+      const episodeNo = Number(ep.number ?? ep.episodeNo ?? ep.ep ?? ep.serial_number) || index + 1;
+      const providerEpisodeId = String(ep.ep ?? ep.episodeNo ?? ep.number ?? ep.id ?? episodeNo);
+      const title = String(ep.title ?? ep.name ?? `Episode ${episodeNo}`);
+
+      const freeValue = ep.free ?? ep.isFree ?? ep.is_free ?? ep.canWatch;
+      const lockedValue = ep.isLocked ?? ep.locked ?? ep.needUnlock ?? ep.is_lock;
+
+      let isLocked = false;
+      if (freeValue !== undefined) {
+        const isFree = freeValue === true || freeValue === 1 || freeValue === '1' || freeValue === 'true';
+        isLocked = !isFree;
+      } else if (lockedValue !== undefined) {
+        isLocked = lockedValue === true || lockedValue === 1 || lockedValue === '1' || lockedValue === 'true';
+      }
+
+      return {
+        episodeId: `${this.slug}:${providerEpisodeId}`,
+        providerEpisodeId,
+        episodeNo,
+        title,
+        durationMs: Number(ep.durationMs ?? ep.duration ?? 0) || 0,
+        isLocked,
+        thumbnailUrl: typeof ep.thumbnail === 'string' ? ep.thumbnail : undefined,
+      };
+    });
   }
 
   mapPlayback(response: unknown): PlaybackResponse {
-    const resp = response as Record<string, unknown>;
-    const streamUrl = this.extractString(resp, ['videoUrl', 'playUrl', 'url', 'streamUrl', 'filePath']) || '';
-    
-    return {
-      streamUrl,
-      expiresAt: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
-    };
+    return super.mapPlayback(response);
   }
 }
 

@@ -115,7 +115,10 @@ export async function GET(request: Request): Promise<NextResponse> {
         const matched = episodes.find((ep) => ep.episodeNo === numericEpisode);
 
         if (matched) {
-          resolvedEpisodeId = matched.chapterId || matched.providerEpisodeId || episodeId;
+          resolvedEpisodeId = provider === 'dramanova'
+            ? String(matched.episodeNo)
+            : (matched.chapterId || matched.providerEpisodeId || episodeId);
+
           logger.info('playback_episode_resolved', {
             requestId,
             provider,
