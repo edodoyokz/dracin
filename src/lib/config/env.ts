@@ -62,8 +62,8 @@ const publicEnvSchema = z.object({
 const optionalEnvSchema = z.object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     CORS_ALLOWED_ORIGIN: z.string().optional(),
-    RATE_LIMIT_GLOBAL_RPM: z.string().transform(Number).default('45'),
-    RATE_LIMIT_PROVIDER_RPM: z.string().transform(Number).default('10'),
+    RATE_LIMIT_GLOBAL_RPM: z.string().transform(Number).default('120'),
+    RATE_LIMIT_PROVIDER_RPM: z.string().transform(Number).default('30'),
     // Database URL for Drizzle ORM (optional - can use Supabase client instead)
     DATABASE_URL: z.string().url().optional(),
     SUPABASE_DB_URL: z.string().url().optional(),
