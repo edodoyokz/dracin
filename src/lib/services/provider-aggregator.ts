@@ -47,30 +47,64 @@ const PROVIDER_HOME_PARAMS: Record<string, Record<string, string>> = {
   dramadash: { id: '1' },
 };
 
-function resolveHomeUrl(provider: ReturnType<typeof providerCatalog.getActiveProviders>[number]): string | null {
+const PROVIDER_HOME_QUERY_SUFFIX: Array<{ matcher: RegExp; query: string }> = [
+  { matcher: /\/dramanow\/api\/v1\/search$/i, query: 'query=love' },
+  { matcher: /\/dreamshort\/search\/books$/i, query: 'keyword=love' },
+  { matcher: /\/melolo\/api\/v1\/search$/i, query: 'q=love' },
+];
+
+function resolveHomeUrls(provider: ReturnType<typeof providerCatalog.getActiveProviders>[number]): string[] {
   const preferredParams = {
     ...GENERIC_HOME_PARAMS,
     ...(PROVIDER_HOME_PARAMS[provider.slug] || {}),
   };
 
+  const urls: string[] = [];
+
   const resolved = providerCatalog.resolveEndpoint(provider.slug, 'home', preferredParams);
   if (resolved && resolved.missingParams.length === 0) {
-    return resolved.url;
+    urls.push(resolved.url);
   }
 
-  const fallbackPatterns = [
-    /(foryou|for-you|home|homepage|feed|popular|hot|rank|ranking|discover|browse|explore|releases|dramas|series|bookmall|tabs|categories|category|new)/i,
-  ];
+  const scorePath = (path: string): number => {
+    if (/(foryou|for-you|home|homepage)/i.test(path)) return 1;
+    if (/(feed|popular|hot|rank|ranking|discover|browse|explore|releases|new|recommend|search)/i.test(path)) return 2;
+    if (/(dramas|drama|series|video|bookmall)/i.test(path)) return 3;
+    if (/(tabs|tab)/i.test(path)) return 4;
+    if (/(categories|category|genres|labels)/i.test(path)) return 5;
+    return 9;
+  };
 
-  const fallbackEndpoint = provider.endpoints.find(
-    (ep) => ep.method === 'GET' && ep.pathParams.length === 0 && fallbackPatterns.some((p) => p.test(ep.path))
-  );
+  const fallbackCandidates = provider.endpoints
+    .filter((ep) => ep.method === 'GET')
+    .sort((a, b) => scorePath(a.path) - scorePath(b.path));
 
-  if (!fallbackEndpoint) {
-    return null;
+  for (const endpoint of fallbackCandidates) {
+    let path = endpoint.path;
+    let canResolve = true;
+
+    for (const param of endpoint.pathParams) {
+      const value = preferredParams[param];
+      if (!value) {
+        canResolve = false;
+        break;
+      }
+      path = path.replace(`:${param}`, encodeURIComponent(value));
+    }
+
+    if (canResolve) {
+      let url = `${provider.baseUrl}${path}`;
+      for (const { matcher, query } of PROVIDER_HOME_QUERY_SUFFIX) {
+        if (matcher.test(url) && !url.includes('?')) {
+          url = `${url}?${query}`;
+          break;
+        }
+      }
+      urls.push(url);
+    }
   }
 
-  return `${provider.baseUrl}${fallbackEndpoint.path}`;
+  return Array.from(new Set(urls));
 }
 
 /**
@@ -117,9 +151,9 @@ export async function fetchHomeFromProviders(
         };
       }
 
-      // Resolve home endpoint with fallback strategy for providers whose feed endpoints are not named /home
-      const homeUrl = resolveHomeUrl(provider);
-      if (!homeUrl) {
+      // Resolve home endpoints with fallback strategy for providers whose feed endpoints vary
+      const homeUrls = resolveHomeUrls(provider);
+      if (homeUrls.length === 0) {
         return {
           provider: provider.slug,
           providerName: provider.provider,
@@ -129,18 +163,6 @@ export async function fetchHomeFromProviders(
           latencyMs: Date.now() - startTime,
         };
       }
-
-      // Fetch with timeout
-      const response = await Promise.race([
-        captainClient.get(homeUrl, {
-          provider: provider.slug,
-          requestId: opts.requestId,
-          timeout: opts.timeoutMs,
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), opts.timeoutMs)
-        ),
-      ]);
 
       // Map response using adapter
       const adapter = getAdapter(provider.slug);
@@ -155,20 +177,52 @@ export async function fetchHomeFromProviders(
         };
       }
 
-      const dramas = adapter.mapHome(response.data);
+      let lastError = 'home_fetch_failed';
+      for (const homeUrl of homeUrls) {
+        try {
+          const response = await Promise.race([
+            captainClient.get(homeUrl, {
+              provider: provider.slug,
+              requestId: opts.requestId,
+              timeout: opts.timeoutMs,
+            }),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('timeout')), opts.timeoutMs)
+            ),
+          ]);
 
-      logger.info('provider_home_success', {
-        requestId: opts.requestId,
-        provider: provider.slug,
-        dramaCount: dramas.length,
-        latencyMs: Date.now() - startTime,
-      });
+          const dramas = adapter.mapHome(response.data);
+          if (dramas.length === 0) {
+            lastError = 'empty_home_payload';
+            continue;
+          }
+
+          logger.info('provider_home_success', {
+            requestId: opts.requestId,
+            provider: provider.slug,
+            endpoint: homeUrl,
+            dramaCount: dramas.length,
+            latencyMs: Date.now() - startTime,
+          });
+
+          return {
+            provider: provider.slug,
+            providerName: provider.provider,
+            dramas,
+            success: true,
+            latencyMs: Date.now() - startTime,
+          };
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : 'Unknown error';
+        }
+      }
 
       return {
         provider: provider.slug,
         providerName: provider.provider,
-        dramas,
-        success: true,
+        dramas: [],
+        success: false,
+        error: lastError,
         latencyMs: Date.now() - startTime,
       };
     } catch (error) {

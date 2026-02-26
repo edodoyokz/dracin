@@ -54,7 +54,7 @@ export class GenericProviderAdapter extends BaseProviderAdapter implements Provi
     }
 
     // Try common array fields
-    const arrayFields = ['list', 'items', 'data', 'results', 'content', 'dramas', 'books', 'series', 'videos'];
+    const arrayFields = ['list', 'items', 'data', 'results', 'content', 'dramas', 'books', 'series', 'videos', 'rows', 'payloads', 'sections'];
     for (const field of arrayFields) {
       if (field in obj && Array.isArray(obj[field])) {
         return obj[field] as unknown[];
@@ -131,41 +131,103 @@ export class GenericProviderAdapter extends BaseProviderAdapter implements Provi
 
     const obj = item as Record<string, unknown>;
 
+    // Unwrap nested content object if present
+    const rawObj = obj;
+    const candidateNested = rawObj.data && typeof rawObj.data === 'object'
+      ? rawObj.data as Record<string, unknown>
+      : rawObj.item && typeof rawObj.item === 'object'
+        ? rawObj.item as Record<string, unknown>
+        : rawObj.book && typeof rawObj.book === 'object'
+          ? rawObj.book as Record<string, unknown>
+          : rawObj.series && typeof rawObj.series === 'object'
+            ? rawObj.series as Record<string, unknown>
+            : rawObj.video && typeof rawObj.video === 'object'
+              ? rawObj.video as Record<string, unknown>
+              : rawObj.cell && typeof rawObj.cell === 'object'
+                ? rawObj.cell as Record<string, unknown>
+                : rawObj;
+
+    const source = candidateNested;
+
+    if (Array.isArray(source.book_data) && source.book_data.length > 0 && typeof source.book_data[0] === 'object') {
+      return this.mapToDramaCard(source.book_data[0]);
+    }
+
+    if (Array.isArray(source.books) && source.books.length > 0 && typeof source.books[0] === 'object') {
+      return this.mapToDramaCard(source.books[0]);
+    }
+
+    if (Array.isArray(source.movies) && source.movies.length > 0 && typeof source.movies[0] === 'object') {
+      return this.mapToDramaCard(source.movies[0]);
+    }
+
+    if (Array.isArray(source.data) && source.data.length > 0 && typeof source.data[0] === 'object') {
+      return this.mapToDramaCard(source.data[0]);
+    }
+
     // Extract ID from various field names
-    const id = this.extractString(obj, ['id', 'dramaId', 'bookId', 'seriesId', 'vid', 'code', 'slug', '_id', 'drama_id', 'book_id']);
+    const id = this.extractString(source, [
+      'id', 'dramaId', 'bookId', 'seriesId', 'vid', 'code', 'slug', '_id',
+      'drama_id', 'book_id', 'programId', 'videoId', 'playlet_id', 'bannerId',
+      'book_id', 'shortplay_id', 'shortPlayCode', 'dshame', 'dcup', 'dlit'
+    ]);
     if (!id) return null;
 
     // Extract title
-    const title = this.extractString(obj, ['title', 'name', 'dramaName', 'bookName', 'seriesName', 'drama_name']);
+    const title = this.extractString(source, [
+      'title', 'name', 'dramaName', 'bookName', 'seriesName', 'drama_name', 'titleName',
+      'shortPlayName', 'short_play_name', 'nseri', 'nsin', 'nmeasu'
+    ]);
 
     // Extract cover URL
-    const coverUrl = this.extractString(obj, [
+    const coverUrl = this.extractString(source, [
       'coverUrl', 'cover', 'poster', 'thumbnail', 'imageUrl', 'image',
-      'cover_url', 'posterUrl', 'thumb', 'imgUrl', 'img',
+      'cover_url', 'posterUrl', 'thumb', 'imgUrl', 'img', 'cover_image',
       'drama_cover', // For MeloShort
-      'pday' // For DotDrama (if using generic adapter)
+      'pday', 'ptear', 'pbat', 'coverWap', 'picUrl', 'cover_square', 'horizontalCoverId'
     ]);
 
     // Extract episode count
-    const episodeCount = this.extractNumber(obj, [
+    const episodeCount = this.extractNumber(source, [
       'episodeCount', 'totalEpisodes', 'episodes', 'chapterCount', 'totalChapters',
-      'episode_count', 'total_episodes', 'chapters'
+      'episode_count', 'total_episodes', 'chapters', 'episodeNum',
+      'upload_num', 'total', 'eshe', 'ewood', 'ewin', 'current_count'
     ]);
 
     // Extract rating
-    const rating = this.extractNumber(obj, ['rating', 'score', 'rate', 'avgRating', 'avg_rating']) || undefined;
+    const rating = this.extractNumber(source, ['rating', 'score', 'rate', 'avgRating', 'avg_rating']) || undefined;
 
     // Extract tags/genres
     let tags: string[] = [];
-    const tagsValue = obj.tags || obj.genres || obj.categories || obj.labels;
+    const tagsValue = source.tags
+      || source.genres
+      || source.categories
+      || source.labels
+      || source.tag_name
+      || source.bookTags
+      || source.category_tag
+      || source.mstr
+      || source.sstra
+      || source.scat
+      || source.sgui;
+
     if (Array.isArray(tagsValue)) {
-      tags = tagsValue.map(t => typeof t === 'string' ? t : (t as Record<string, string>)?.name || String(t));
+      tags = tagsValue
+        .map((t) => {
+          if (typeof t === 'string') return t;
+          if (typeof t === 'object' && t !== null) {
+            const tagObj = t as Record<string, unknown>;
+            return this.extractString(tagObj, ['name', 'tagName', 'title']);
+          }
+          return String(t);
+        })
+        .filter(Boolean);
     } else if (typeof tagsValue === 'string') {
       tags = tagsValue.split(',').map(t => t.trim()).filter(Boolean);
     }
 
     // Check if premium
-    const isPremium = this.extractBoolean(obj, ['isPremium', 'isVip', 'isPaid', 'premium', 'vip', 'paid']);
+    const isPremium = this.extractBoolean(source, ['isPremium', 'isVip', 'isPaid', 'premium', 'vip', 'paid']);
 
     return {
       id: `${this.slug}:${id}`,
@@ -185,6 +247,9 @@ export class GenericProviderAdapter extends BaseProviderAdapter implements Provi
   mapHome(response: unknown): DramaCard[] {
     const patterns = [
       'data.list', 'data.items', 'data.dramas', 'data.books', 'data.series',
+      'data.data', 'data.rows', 'data.payloads',
+      'dataResult.data', 'dataResult.popularTvs',
+      'dgiv.lint', 'rows', 'payloads', 'sections',
       'list', 'items', 'dramas', 'books', 'series', 'results'
     ];
 
