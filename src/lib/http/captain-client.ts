@@ -65,7 +65,13 @@ export class CaptainClient {
       requestId,
     } = config;
 
-    const fullUrl = url.startsWith('http') ? url : `${this.baseHost}${url}`;
+    let fullUrl = url.startsWith('http') ? url : `${this.baseHost}${url}`;
+
+    if (provider === 'dramanova' && !/[?&]lang=/i.test(fullUrl)) {
+      const separator = fullUrl.includes('?') ? '&' : '?';
+      fullUrl = `${fullUrl}${separator}lang=in`;
+    }
+
     const startTime = Date.now();
 
     for (let attempt = 0; attempt <= retries; attempt++) {
