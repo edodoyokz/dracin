@@ -458,12 +458,60 @@ export class GenericProviderAdapter extends BaseProviderAdapter implements Provi
       }
     }
 
+    // Extract subtitles
+    const subtitles = this.extractSubtitles(obj);
+
     return {
       streamUrl,
       mimeType,
       headers,
       expiresAt,
       nextEpisode,
+      subtitles,
     };
+  }
+
+  /**
+   * Extract subtitle tracks from response
+   */
+  protected extractSubtitles(obj: Record<string, unknown>): Array<{ src: string; srclang: string; label: string; default?: boolean }> | undefined {
+    // Check for subtitle/caption fields in various formats
+    const subtitleValue = obj.subtitles || obj.subtitle || obj.captions || obj.caption || obj.tracks;
+    
+    if (Array.isArray(subtitleValue)) {
+      return subtitleValue.map((sub: unknown) => {
+        if (typeof sub !== 'object' || sub === null) return null;
+        const subObj = sub as Record<string, unknown>;
+        return {
+          src: this.extractString(subObj, ['src', 'url', 'file', 'vtt', 'srt']),
+          srclang: this.extractString(subObj, ['srclang', 'lang', 'language', 'locale', 'code']) || 'id',
+          label: this.extractString(subObj, ['label', 'name', 'title', 'lang', 'language']) || 'Indonesia',
+          default: subObj.default === true || subObj.default === 'true',
+        };
+      }).filter((sub): sub is NonNullable<typeof sub> => sub !== null && sub.src !== '');
+    }
+
+    // Single subtitle URL as string
+    if (typeof subtitleValue === 'string' && subtitleValue.length > 0) {
+      return [{
+        src: subtitleValue,
+        srclang: 'id',
+        label: 'Indonesia',
+        default: true,
+      }];
+    }
+
+    // Check for subtitleUrl or subtitle_url field
+    const subtitleUrl = this.extractString(obj, ['subtitleUrl', 'subtitle_url', 'captionUrl', 'caption_url', 'vttUrl', 'srtUrl']);
+    if (subtitleUrl) {
+      return [{
+        src: subtitleUrl,
+        srclang: 'id',
+        label: 'Indonesia',
+        default: true,
+      }];
+    }
+
+    return undefined;
   }
 }

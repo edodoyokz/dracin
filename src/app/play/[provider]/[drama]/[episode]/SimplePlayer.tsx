@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, List } from 'lucide-react';
 import { getPlaybackUrl, getDramaEpisodes, getDramaDetail } from '@/lib/api-client';
-import type { EpisodeItem, DramaDetail } from '@/lib/types';
+import type { EpisodeItem, DramaDetail, PlaybackResponse } from '@/lib/types';
 import { EpisodeDrawer } from '@/app/components/player';
 
 export default function SimplePlayer() {
@@ -15,7 +15,7 @@ export default function SimplePlayer() {
   const episodeNo = parseInt(params.episode as string, 10);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [playbackData, setPlaybackData] = useState<PlaybackResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [drama, setDrama] = useState<DramaDetail | null>(null);
@@ -41,7 +41,7 @@ export default function SimplePlayer() {
     getPlaybackUrl(provider, dramaId, String(episodeNo), 'guest')
       .then((data) => {
         if (data?.streamUrl) {
-          setStreamUrl(data.streamUrl);
+          setPlaybackData(data);
         } else {
           setError('Video tidak tersedia');
         }
@@ -107,16 +107,28 @@ export default function SimplePlayer() {
           </div>
         )}
 
-        {streamUrl && (
+        {playbackData?.streamUrl && (
           <video
             ref={videoRef}
-            src={streamUrl}
+            src={playbackData.streamUrl}
             autoPlay
             playsInline
             controls
             className="w-full h-full max-h-screen"
             onEnded={handleNextEpisode}
-          />
+          >
+            {/* Render subtitle tracks */}
+            {playbackData.subtitles?.map((sub, index) => (
+              <track
+                key={index}
+                kind="subtitles"
+                src={sub.src}
+                srcLang={sub.srclang}
+                label={sub.label}
+                default={sub.default}
+              />
+            ))}
+          </video>
         )}
       </div>
 

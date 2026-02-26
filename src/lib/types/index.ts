@@ -66,6 +66,13 @@ export interface EpisodeItem {
   thumbnailUrl?: string;
 }
 
+export interface SubtitleTrack {
+  src: string;
+  srclang: string;
+  label: string;
+  default?: boolean;
+}
+
 export interface PlaybackResponse {
   streamUrl: string;
   mimeType?: string;
@@ -75,6 +82,7 @@ export interface PlaybackResponse {
     episodeId: string;
     episodeNo: number;
   };
+  subtitles?: SubtitleTrack[];
 }
 
 export interface WatchProgress {
