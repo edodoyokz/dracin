@@ -58,8 +58,8 @@ export async function GET(request: Request): Promise<NextResponse> {
     const cache = getCacheManager();
 
     // Try to get cached data
-    // Note: v2 cache key to bust old cached data with duplicate provider sections
-    const cacheKey = `home:sections:v2:${userId || 'guest'}`;
+    // Note: v3 cache key to bust old provider-section limits
+    const cacheKey = `home:sections:v3:${userId || 'guest'}`;
     const cached = await cache.get<HomeResponseData>(cacheKey);
 
     if (cached) {

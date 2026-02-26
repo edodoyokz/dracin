@@ -342,7 +342,9 @@ export async function getTopProviders(limit: number = 6): Promise<ProviderInfo[]
 }
 
 export async function getProviderSections(): Promise<ProviderSectionData[]> {
-  const providers = await getTopProviders(6);
+  const providers = (await getTopProvidersByContent(100)).filter(
+    (provider) => provider.contentCount > 0
+  );
   const supabase = getSupabaseClient();
 
   const sectionResults = await Promise.all(
