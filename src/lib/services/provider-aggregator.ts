@@ -30,6 +30,49 @@ const DEFAULT_OPTIONS: Partial<ProviderFetchOptions> = {
   shuffle: true,
 };
 
+const GENERIC_HOME_PARAMS: Record<string, string> = {
+  page: '1',
+  tab: '1',
+  id: '1',
+  name: 'home',
+  q: 'love',
+  query: 'love',
+  keyword: 'love',
+};
+
+const PROVIDER_HOME_PARAMS: Record<string, Record<string, string>> = {
+  flextv: { name: 'Fokus' },
+  netshort: { page: '1' },
+  dramawave: { tab: '1' },
+  dramadash: { id: '1' },
+};
+
+function resolveHomeUrl(provider: ReturnType<typeof providerCatalog.getActiveProviders>[number]): string | null {
+  const preferredParams = {
+    ...GENERIC_HOME_PARAMS,
+    ...(PROVIDER_HOME_PARAMS[provider.slug] || {}),
+  };
+
+  const resolved = providerCatalog.resolveEndpoint(provider.slug, 'home', preferredParams);
+  if (resolved && resolved.missingParams.length === 0) {
+    return resolved.url;
+  }
+
+  const fallbackPatterns = [
+    /(foryou|for-you|home|homepage|feed|popular|hot|rank|ranking|discover|browse|explore|releases|dramas|series|bookmall|tabs|categories|category|new)/i,
+  ];
+
+  const fallbackEndpoint = provider.endpoints.find(
+    (ep) => ep.method === 'GET' && ep.pathParams.length === 0 && fallbackPatterns.some((p) => p.test(ep.path))
+  );
+
+  if (!fallbackEndpoint) {
+    return null;
+  }
+
+  return `${provider.baseUrl}${fallbackEndpoint.path}`;
+}
+
 /**
  * Fetch home/featured content from multiple providers in parallel
  * with graceful degradation for failed providers.
@@ -74,9 +117,9 @@ export async function fetchHomeFromProviders(
         };
       }
 
-      // Resolve home endpoint
-      const resolved = providerCatalog.resolveEndpoint(provider.slug, 'home');
-      if (!resolved) {
+      // Resolve home endpoint with fallback strategy for providers whose feed endpoints are not named /home
+      const homeUrl = resolveHomeUrl(provider);
+      if (!homeUrl) {
         return {
           provider: provider.slug,
           providerName: provider.provider,
@@ -89,7 +132,7 @@ export async function fetchHomeFromProviders(
 
       // Fetch with timeout
       const response = await Promise.race([
-        captainClient.get(resolved.url, {
+        captainClient.get(homeUrl, {
           provider: provider.slug,
           requestId: opts.requestId,
           timeout: opts.timeoutMs,
