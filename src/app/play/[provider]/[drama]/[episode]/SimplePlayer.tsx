@@ -70,7 +70,7 @@ export default function SimplePlayer() {
       {/* Simple Header */}
       <div className="absolute top-0 left-0 right-0 z-50 p-4 bg-gradient-to-b from-black/70 to-transparent flex items-center justify-between">
         <button
-          onClick={() => router.back()}
+          onClick={() => router.push(`/dramas/${provider}:${dramaId}`)}
           className="p-2 bg-black/50 rounded-full text-white hover:bg-black/70"
         >
           <ArrowLeft size={20} />
