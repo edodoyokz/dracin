@@ -106,7 +106,10 @@ export async function getDramasByProvider(
 
     const { data, error, count } = await query;
 
+    console.log(`[DB Query] ${providerSlug}: found ${data?.length || 0} dramas, total count: ${count || 0}`);
+
     if (error) {
+        console.error(`[DB Query] ${providerSlug} error:`, error);
         throw new Error(`Failed to fetch provider dramas: ${error.message}`);
     }
 

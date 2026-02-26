@@ -70,6 +70,8 @@ export async function GET(
             getProviderGenres(slug),
         ]);
 
+        console.log(`[Provider API] ${slug}: fetched ${dramas.length} dramas, total: ${total}, genre: ${genre || 'all'}`);
+
         const response: ApiResponse<ProviderResponse> = {
             data: {
                 provider: {
