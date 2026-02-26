@@ -4,7 +4,6 @@ import {
   getTrendingDramas,
   getNewReleases,
   getProviderSections,
-  getTopProvidersByContent,
   getForYouDramas,
   type DbDrama
 } from '@/lib/db/dramas';
@@ -20,6 +19,8 @@ export const dynamic = 'force-dynamic';
 
 // Cache TTLs in seconds
 const CACHE_TTL = {
+  HOME_SNAPSHOT: 15 * 60, // 15 minutes
+  HOME_STALE: 60 * 60, // 1 hour stale fallback
   FEATURED: 5 * 60, // 5 minutes
   TRENDING: 10 * 60, // 10 minutes
   NEW_RELEASES: 15 * 60, // 15 minutes
@@ -58,11 +59,12 @@ export async function GET(request: Request): Promise<NextResponse> {
   try {
     const cache = getCacheManager();
 
-    // Try to get cached data
-    // Note: v3 cache key to bust old provider-section limits
-    const cacheKey = `home:sections:v3:${userId || 'guest'}`;
-    const cached = await cache.get<HomeResponseData>(cacheKey);
+    const userCacheScope = userId || 'guest';
+    const freshCacheKey = `home:sections:v4:${userCacheScope}`;
+    const staleCacheKey = `home:sections:v4:stale:${userCacheScope}`;
 
+    // Fresh cache path
+    const cached = await cache.get<HomeResponseData>(freshCacheKey);
     if (cached) {
       const response: ApiResponse<HomeResponseData> = {
         data: cached,
@@ -76,117 +78,44 @@ export async function GET(request: Request): Promise<NextResponse> {
       return NextResponse.json(response);
     }
 
-    // Fetch provider content from all 41 active providers
-    const providerResultsPromise = fetchHomeFromProviders({
-      maxProviders: 41,
-      shuffle: true,
-      requestId,
-    });
+    // Stale fallback to keep latency low while serving acceptable data
+    const staleCached = await cache.get<HomeResponseData>(staleCacheKey);
 
-    // Fetch all sections in parallel
-    const [
-      featured,
-      trending,
-      newReleasesData,
-      providerSections,
-      providers,
-      forYou,
-      continueWatching,
-      genres,
-      providerResults,
-    ] = await Promise.all([
-      getCachedFeatured(),
-      getCachedTrending(),
-      getCachedNewReleases(),
-      getProviderSections(),
-      getTopProvidersByContent(10),
-      getForYouDramas(10),
-      userId ? getContinueWatching(userId) : Promise.resolve(null),
-      getGenres(),
-      providerResultsPromise,
-    ]);
+    let homeData: HomeResponseData;
+    let cacheState: 'hit' | 'miss';
 
-    // Build provider sections from fetched data
-    const dynamicProviderSections = buildProviderSectionsFromResults(providerResults);
+    try {
+      homeData = await buildHomeData(requestId, userId);
+      cacheState = 'miss';
 
-    // Group new releases by time period
-    const newReleases = groupNewReleases(newReleasesData);
-
-    // Merge static and dynamic provider sections with deduplication
-    // Prefer dynamic sections (from API) over static sections (from DB)
-    const sectionMap = new Map<string, typeof providerSections[0]>();
-    
-    // Add static sections first
-    for (const section of providerSections) {
-      sectionMap.set(section.provider.slug, section);
-    }
-    
-    // Add dynamic sections (will override static if same provider)
-    for (const section of dynamicProviderSections) {
-      sectionMap.set(section.provider.slug, section);
-    }
-    
-    const mergedProviderSections = Array.from(sectionMap.values());
-
-    // Get all active providers with content count from database
-    const allProviders = await getActiveProviders();
-
-    // Map to ProviderInfo type
-    const providersInfo: ProviderInfo[] = allProviders.map(p => ({
-      slug: p.slug,
-      name: p.name,
-      contentCount: p.dramaCount,
-      isNew: false,
-    }));
-
-    // Ensure every active provider appears on homepage sections
-    const mergedSectionMap = new Map(
-      mergedProviderSections.map((section) => [section.provider.slug, section])
-    );
-
-    const completeProviderSections = providersInfo.map((provider) => {
-      const existing = mergedSectionMap.get(provider.slug);
-      if (existing) {
-        return {
-          ...existing,
-          provider: {
-            ...existing.provider,
-            contentCount: provider.contentCount,
-          },
-        };
+      await Promise.all([
+        cache.set(freshCacheKey, homeData, CACHE_TTL.HOME_SNAPSHOT),
+        cache.set(staleCacheKey, homeData, CACHE_TTL.HOME_STALE),
+      ]);
+    } catch (error) {
+      if (!staleCached) {
+        throw error;
       }
 
-      return {
-        provider: {
-          slug: provider.slug,
-          name: provider.name,
-          contentCount: provider.contentCount,
-        },
-        dramas: [],
-        totalCount: 0,
-      };
-    });
+      logger.warn('home_served_stale', {
+        requestId,
+        userId: userCacheScope,
+        reason: error instanceof Error ? error.message : 'Unknown error',
+      });
 
-    const homeData: HomeResponseData = {
-      featured,
-      continueWatching,
-      forYou,
-      trending,
-      newReleases,
-      providerSections: completeProviderSections,
-      genres,
-      providers: providersInfo,
-    };
+      homeData = staleCached;
+      cacheState = 'hit';
 
-    // Cache the response
-    await cache.set(cacheKey, homeData, CACHE_TTL.FEATURED);
+      // keep stale cache warm for the fallback path
+      await cache.set(staleCacheKey, staleCached, CACHE_TTL.HOME_STALE);
+    }
 
     const response: ApiResponse<HomeResponseData> = {
       data: homeData,
       meta: {
         requestId,
         timestamp: new Date().toISOString(),
-        cache: 'miss',
+        cache: cacheState,
       },
       error: null,
     };
@@ -226,6 +155,111 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     return NextResponse.json(response, { status: 500 });
   }
+}
+
+async function buildHomeData(
+  requestId: string,
+  userId: string | null
+): Promise<HomeResponseData> {
+  // Fetch provider content from all 41 active providers
+  const providerResultsPromise = fetchHomeFromProviders({
+    maxProviders: 41,
+    shuffle: true,
+    requestId,
+  });
+
+  // Fetch all sections in parallel
+  const [
+    featured,
+    trending,
+    newReleasesData,
+    providerSections,
+    forYou,
+    continueWatching,
+    genres,
+    providerResults,
+  ] = await Promise.all([
+    getCachedFeatured(),
+    getCachedTrending(),
+    getCachedNewReleases(),
+    getProviderSections(),
+    getForYouDramas(10),
+    userId ? getContinueWatching(userId) : Promise.resolve(null),
+    getGenres(),
+    providerResultsPromise,
+  ]);
+
+  // Build provider sections from fetched data
+  const dynamicProviderSections = buildProviderSectionsFromResults(providerResults);
+
+  // Group new releases by time period
+  const newReleases = groupNewReleases(newReleasesData);
+
+  // Merge static and dynamic provider sections with deduplication
+  // Prefer dynamic sections (from API) over static sections (from DB)
+  const sectionMap = new Map<string, typeof providerSections[0]>();
+
+  // Add static sections first
+  for (const section of providerSections) {
+    sectionMap.set(section.provider.slug, section);
+  }
+
+  // Add dynamic sections (will override static if same provider)
+  for (const section of dynamicProviderSections) {
+    sectionMap.set(section.provider.slug, section);
+  }
+
+  const mergedProviderSections = Array.from(sectionMap.values());
+
+  // Get all active providers with content count from database
+  const allProviders = await getActiveProviders();
+
+  // Map to ProviderInfo type
+  const providersInfo: ProviderInfo[] = allProviders.map(p => ({
+    slug: p.slug,
+    name: p.name,
+    contentCount: p.dramaCount,
+    isNew: false,
+  }));
+
+  // Ensure every active provider appears on homepage sections
+  const mergedSectionMap = new Map(
+    mergedProviderSections.map((section) => [section.provider.slug, section])
+  );
+
+  const completeProviderSections = providersInfo.map((provider) => {
+    const existing = mergedSectionMap.get(provider.slug);
+    if (existing) {
+      return {
+        ...existing,
+        provider: {
+          ...existing.provider,
+          contentCount: provider.contentCount,
+        },
+      };
+    }
+
+    return {
+      provider: {
+        slug: provider.slug,
+        name: provider.name,
+        contentCount: provider.contentCount,
+      },
+      dramas: [],
+      totalCount: 0,
+    };
+  });
+
+  return {
+    featured,
+    continueWatching,
+    forYou,
+    trending,
+    newReleases,
+    providerSections: completeProviderSections,
+    genres,
+    providers: providersInfo,
+  };
 }
 
 // Cached data fetchers

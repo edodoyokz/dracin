@@ -88,6 +88,15 @@ export async function getDramasByProvider(
 ): Promise<{ dramas: DramaCard[]; total: number }> {
     const supabase = getSupabaseClient();
 
+    // First, check total count without any filters
+    const { count: totalCount } = await supabase
+        .from('dramas')
+        .select('*', { count: 'exact', head: true })
+        .eq('provider_slug', providerSlug);
+
+    // eslint-disable-next-line no-console
+    console.error(`[DEBUG DB COUNT] ${providerSlug}: totalCount=${totalCount || 0}`);
+
     let query = supabase
         .from('dramas')
         .select('*', { count: 'exact' })
@@ -106,10 +115,10 @@ export async function getDramasByProvider(
 
     const { data, error, count } = await query;
 
-    console.log(`[DB Query] ${providerSlug}: found ${data?.length || 0} dramas, total count: ${count || 0}`);
+    // eslint-disable-next-line no-console
+    console.error(`[DEBUG DB] ${providerSlug}: data=${data?.length || 0}, count=${count || 0}, error=${error?.message || 'none'}`);
 
     if (error) {
-        console.error(`[DB Query] ${providerSlug} error:`, error);
         throw new Error(`Failed to fetch provider dramas: ${error.message}`);
     }
 
