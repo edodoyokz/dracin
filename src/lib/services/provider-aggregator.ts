@@ -26,7 +26,7 @@ export interface ProviderFetchOptions {
 
 const DEFAULT_OPTIONS: Partial<ProviderFetchOptions> = {
   maxProviders: 41,
-  timeoutMs: 4000,
+  timeoutMs: 15000,
   shuffle: true,
 };
 
