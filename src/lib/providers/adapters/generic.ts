@@ -408,7 +408,7 @@ export class GenericProviderAdapter extends BaseProviderAdapter implements Provi
 
     // Extract stream URL from various patterns
     let streamUrl = this.extractString(obj, [
-      'streamUrl', 'url', 'playUrl', 'videoUrl', 'src', 'm3u8', 'mp4',
+      'streamUrl', 'url', 'playUrl', 'videoUrl', 'video', 'src', 'm3u8', 'mp4',
       'stream_url', 'play_url', 'video_url', 'videoSrc', 'video_src'
     ]);
 
