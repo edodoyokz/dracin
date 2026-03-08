@@ -37,9 +37,18 @@ export class CacheManager {
   }
 }
 
-export function createSearchKey(query: string, page: number): string {
+export function getCurrentDateBucket(date = new Date()): string {
+  return date.toISOString().slice(0, 10);
+}
+
+export function createSearchKey(query: string, page: number, dateBucket = getCurrentDateBucket()): string {
   const normalizedQuery = query.toLowerCase().trim().replace(/\s+/g, '_');
-  return `search:v1:${normalizedQuery}:page:${page}`;
+  return `search:v1:${dateBucket}:${normalizedQuery}:page:${page}`;
+}
+
+export function createSearchMetaKey(query: string, dateBucket = getCurrentDateBucket()): string {
+  const normalizedQuery = query.toLowerCase().trim().replace(/\s+/g, '_');
+  return `search-meta:v1:${dateBucket}:${normalizedQuery}`;
 }
 
 export function createPlaybackKey(provider: string, dramaId: string, episodeId: string): string {

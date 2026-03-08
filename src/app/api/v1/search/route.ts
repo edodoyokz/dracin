@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { searchAcrossProviders } from '@/lib/services/search';
-import { getCacheManager, createSearchKey, CACHE_TTL } from '@/lib/cache/redis';
+import { getCacheManager, createSearchKey, createSearchMetaKey, CACHE_TTL } from '@/lib/cache/redis';
 import { providerCatalog } from '@/lib/providers/catalog';
 import { logger, generateRequestId } from '@/lib/observability/logger';
 import { validateSearchParams, searchRequestSchema } from '@/lib/validation/schemas';
@@ -35,10 +35,29 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   try {
     const cache = getCacheManager();
-    const cacheKey = createSearchKey(`${query}:${providers.join(',')}:${genres.join(',')}:${sort}:${limit}`, page);
+    const searchSignature = `${query}:${providers.join(',')}:${genres.join(',')}:${sort}:${limit}`;
+    const cacheKey = createSearchKey(searchSignature, page);
+    const metaKey = createSearchMetaKey(searchSignature);
 
-    const cached = await cache.get<DramaCard[]>(cacheKey);
-    if (cached) {
+    type SearchCacheMeta = {
+      lastFetchedAt: string;
+      resultCount: number;
+    };
+
+    const [cached, cacheMeta] = await Promise.all([
+      cache.get<DramaCard[]>(cacheKey),
+      cache.get<SearchCacheMeta>(metaKey),
+    ]);
+
+    const emptyRetryWindowMs = 15 * 60 * 1000;
+    const lastFetchedAtMs = cacheMeta?.lastFetchedAt ? new Date(cacheMeta.lastFetchedAt).getTime() : 0;
+    const hasFreshEmptyResult = !!cacheMeta
+      && cacheMeta.resultCount === 0
+      && Number.isFinite(lastFetchedAtMs)
+      && lastFetchedAtMs > 0
+      && (Date.now() - lastFetchedAtMs) < emptyRetryWindowMs;
+
+    if (cached && cached.length > 0) {
       logger.info('search_cache_hit', { requestId, query, page, providers, genres, sort });
 
       const response: ApiResponse<DramaCard[]> = {
@@ -50,12 +69,60 @@ export async function GET(request: Request): Promise<NextResponse> {
           pagination: {
             page,
             pageSize: cached.length,
-            total: cached.length,
+            total: cacheMeta?.resultCount ?? cached.length,
           },
         },
         error: null,
       };
       return NextResponse.json(response);
+    }
+
+    if (cached && cached.length === 0 && hasFreshEmptyResult) {
+      logger.info('search_empty_cache_reused', { requestId, query, page, providers, genres, sort });
+
+      const response: ApiResponse<DramaCard[]> = {
+        data: cached,
+        meta: {
+          requestId,
+          timestamp: new Date().toISOString(),
+          cache: 'hit',
+          pagination: {
+            page,
+            pageSize: 0,
+            total: 0,
+          },
+        },
+        error: null,
+      };
+      return NextResponse.json(response);
+    }
+
+    if (!cached && hasFreshEmptyResult) {
+      logger.info('search_empty_cache_reused', { requestId, query, page, providers, genres, sort, source: 'meta' });
+
+      const response: ApiResponse<DramaCard[]> = {
+        data: [],
+        meta: {
+          requestId,
+          timestamp: new Date().toISOString(),
+          cache: 'hit',
+          pagination: {
+            page,
+            pageSize: 0,
+            total: 0,
+          },
+        },
+        error: null,
+      };
+      return NextResponse.json(response);
+    }
+
+    if ((cached && cached.length === 0) || (!cached && cacheMeta?.resultCount === 0)) {
+      logger.info('search_empty_cache_retry_due', { requestId, query, page, providers, genres, sort });
+    }
+
+    if (!cacheMeta) {
+      logger.info('search_daily_first_fetch', { requestId, query, page, providers, genres, sort });
     }
 
     logger.info('search_cache_miss', { requestId, query, page, providers, genres, sort });
@@ -108,7 +175,13 @@ export async function GET(request: Request): Promise<NextResponse> {
     const startIndex = (page - 1) * limit;
     const paginatedResults = results.slice(startIndex, startIndex + limit);
 
-    await cache.set(cacheKey, paginatedResults, CACHE_TTL.SEARCH);
+    await Promise.all([
+      cache.set(cacheKey, paginatedResults, CACHE_TTL.SEARCH),
+      cache.set(metaKey, {
+        lastFetchedAt: new Date().toISOString(),
+        resultCount: results.length,
+      }, CACHE_TTL.SEARCH),
+    ]);
 
     const response: ApiResponse<DramaCard[]> = {
       data: paginatedResults,
