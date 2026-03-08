@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { request as httpsRequest } from 'node:https';
 import { getPlaybackUrl } from '@/lib/services/playback';
 import { checkEntitlement } from '@/lib/db/subscriptions';
 import { getDramaByProviderId, getEpisodesByDramaId } from '@/lib/db/dramas';
@@ -57,6 +58,49 @@ async function hasUnsupportedOfflineKeyStream(
   }
 }
 
+async function fetchSubtitleViaHttps(url: string): Promise<{ status: number; body: string; contentType: string | null }> {
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+
+    return {
+      status: response.status,
+      body: await response.text(),
+      contentType: response.headers.get('content-type'),
+    };
+  } catch {
+    return new Promise((resolve, reject) => {
+      const hostname = (() => {
+        try {
+          return new URL(url).hostname;
+        } catch {
+          return '';
+        }
+      })();
+
+      const req = httpsRequest(url, {
+        method: 'GET',
+        rejectUnauthorized: hostname === 'awscdn.netshort.com' ? false : true,
+      }, (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+        res.on('end', () => {
+          resolve({
+            status: res.statusCode || 502,
+            body: Buffer.concat(chunks).toString('utf-8'),
+            contentType: typeof res.headers['content-type'] === 'string' ? res.headers['content-type'] : null,
+          });
+        });
+      });
+
+      req.on('error', reject);
+      req.end();
+    });
+  }
+}
+
 async function proxySubtitleTrack(track: SubtitleTrack, requestId: string): Promise<SubtitleTrack> {
   try {
     const sourceUrl = new URL(track.src);
@@ -92,20 +136,16 @@ export async function GET(request: Request): Promise<NextResponse> {
   const subtitleUrl = searchParams.get('subtitleUrl');
   if (subtitleUrl) {
     try {
-      const upstream = await fetch(subtitleUrl, {
-        method: 'GET',
-        cache: 'no-store',
-      });
+      const upstream = await fetchSubtitleViaHttps(subtitleUrl);
 
-      if (!upstream.ok) {
+      if (upstream.status < 200 || upstream.status >= 300) {
         return new NextResponse('Subtitle unavailable', { status: upstream.status });
       }
 
-      const body = await upstream.text();
-      return new NextResponse(body, {
+      return new NextResponse(upstream.body, {
         status: 200,
         headers: {
-          'Content-Type': 'text/vtt; charset=utf-8',
+          'Content-Type': upstream.contentType || 'text/vtt; charset=utf-8',
           'Cache-Control': 'private, max-age=60',
           'Access-Control-Allow-Origin': '*',
         },

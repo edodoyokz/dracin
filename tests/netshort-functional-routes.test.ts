@@ -124,6 +124,9 @@ describe('netshort functional routes', () => {
       ok: true,
       status: 200,
       text: vi.fn().mockResolvedValue('WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nHalo'),
+      headers: {
+        get: vi.fn().mockReturnValue('text/vtt'),
+      },
     });
   });
 
@@ -271,4 +274,5 @@ describe('netshort functional routes', () => {
       cache: 'no-store',
     }));
   });
+
 });
