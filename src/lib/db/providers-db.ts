@@ -22,6 +22,50 @@ export interface ProviderWithDramas {
     total: number;
 }
 
+export interface ProviderCatalogCompleteness {
+    isPossiblyIncomplete: boolean;
+    reason: 'not_target_provider' | 'provider_inactive' | 'db_has_more' | 'db_only_partial_tail' | 'db_page_empty' | 'db_empty';
+}
+
+export function assessProviderCatalogCompleteness(params: {
+    providerSlug: string;
+    providerStatus: ProviderDetail['status'];
+    page: number;
+    limit: number;
+    pageCount: number;
+    total: number;
+}): ProviderCatalogCompleteness {
+    const { providerSlug, providerStatus, page, limit, pageCount, total } = params;
+
+    const fallbackEligibleProviders = new Set(['goodshort', 'netshort']);
+    if (!fallbackEligibleProviders.has(providerSlug)) {
+        return { isPossiblyIncomplete: false, reason: 'not_target_provider' };
+    }
+
+    if (providerStatus !== 'active') {
+        return { isPossiblyIncomplete: false, reason: 'provider_inactive' };
+    }
+
+    if (total === 0) {
+        return { isPossiblyIncomplete: true, reason: 'db_empty' };
+    }
+
+    const dbHasMore = page * limit < total;
+    if (dbHasMore) {
+        return { isPossiblyIncomplete: false, reason: 'db_has_more' };
+    }
+
+    if (pageCount === 0) {
+        return { isPossiblyIncomplete: true, reason: 'db_page_empty' };
+    }
+
+    if (pageCount < limit) {
+        return { isPossiblyIncomplete: true, reason: 'db_only_partial_tail' };
+    }
+
+    return { isPossiblyIncomplete: false, reason: 'db_has_more' };
+}
+
 /**
  * Get provider by slug with full details
  */
