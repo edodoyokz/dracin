@@ -293,6 +293,8 @@ export default function SearchPage() {
                 query={query}
                 onResetFilters={hasFilters ? resetFilters : undefined}
                 hasFilters={hasFilters}
+                activeProviders={filters.providers}
+                activeGenres={filters.genres}
               />
             )}
           </div>

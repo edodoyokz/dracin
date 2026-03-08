@@ -92,32 +92,72 @@ export async function GET(
     const usableCount = dbEpisodes.filter(isEpisodeUsable).length;
     const hasCorruptedEpisodeRows = dbEpisodes.length > 0 && usableCount === 0;
 
-    if (dbEpisodes.length > 0 && !hasCorruptedEpisodeRows) {
-      // Use DB episodes if available and valid
-      episodes = dbEpisodes;
-    } else {
-      // Use fallback to provider API with auto-sync
-      logger.info('episodes_fallback_to_provider', {
+    const expectedEpisodeCount = Math.max(1, drama.episodeCount || 0);
+    const requiresNetshortResync = drama.providerSlug === 'netshort'
+      && (hasCorruptedEpisodeRows || dbEpisodes.length < expectedEpisodeCount);
+
+    if (requiresNetshortResync) {
+      logger.info('episodes_netshort_resync_forced', {
         requestId,
         requestedDramaId: normalizedId,
         dramaId: drama.id,
         provider: drama.providerSlug,
         providerDramaId: drama.providerDramaId,
-        reason: dbEpisodes.length === 0 ? 'empty' : 'corrupted_rows',
+        dbCount: dbEpisodes.length,
+        expectedEpisodeCount,
       });
 
-      episodes = await getEpisodesWithFallback(
-        drama.id,
-        drama.providerSlug,
-        drama.providerDramaId,
-        requestId
-      );
+      await syncEpisodes(drama.providerSlug, drama.providerDramaId);
+
+      const refreshedEpisodes = await getEpisodesByDramaId(drama.id);
+      if (refreshedEpisodes.length > 0) {
+        episodes = refreshedEpisodes;
+      }
+    }
+
+    if (episodes.length === 0) {
+      if (dbEpisodes.length > 0 && !hasCorruptedEpisodeRows && !requiresNetshortResync) {
+        episodes = dbEpisodes;
+      } else {
+        // Use fallback to provider API with auto-sync
+        logger.info('episodes_fallback_to_provider', {
+          requestId,
+          requestedDramaId: normalizedId,
+          dramaId: drama.id,
+          provider: drama.providerSlug,
+          providerDramaId: drama.providerDramaId,
+          reason: dbEpisodes.length === 0
+            ? 'empty'
+            : (hasCorruptedEpisodeRows ? 'corrupted_rows' : 'forced_resync_empty'),
+        });
+
+        episodes = await getEpisodesWithFallback(
+          drama.id,
+          drama.providerSlug,
+          drama.providerDramaId,
+          requestId
+        );
+      }
     }
 
     const sanitizedEpisodes = episodes.filter(isEpisodeUsable);
+    const dedupedEpisodes = (() => {
+      const seen = new Set<string>();
+      const unique: EpisodeItem[] = [];
+
+      for (const episode of sanitizedEpisodes) {
+        const identity = `${episode.episodeNo}:${episode.providerEpisodeId || ''}:${episode.chapterId || ''}`;
+        if (seen.has(identity)) continue;
+        seen.add(identity);
+        unique.push(episode);
+      }
+
+      return unique.sort((a, b) => a.episodeNo - b.episodeNo);
+    })();
+
     const normalizedEpisodes = drama.providerSlug === 'dramanova'
-      ? sanitizedEpisodes.map((episode) => ({ ...episode, isLocked: false }))
-      : sanitizedEpisodes;
+      ? dedupedEpisodes.map((episode) => ({ ...episode, isLocked: false }))
+      : dedupedEpisodes;
 
     if (sanitizedEpisodes.length !== episodes.length) {
       logger.warn('episodes_filtered_invalid_rows', {

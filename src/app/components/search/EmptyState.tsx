@@ -6,9 +6,17 @@ interface EmptyStateProps {
     query: string;
     onResetFilters?: () => void;
     hasFilters?: boolean;
+    activeProviders?: string[];
+    activeGenres?: string[];
 }
 
-export function EmptyState({ query, onResetFilters, hasFilters }: EmptyStateProps) {
+export function EmptyState({
+    query,
+    onResetFilters,
+    hasFilters,
+    activeProviders = [],
+    activeGenres = [],
+}: EmptyStateProps) {
     return (
         <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
             {/* Icon */}
@@ -37,6 +45,18 @@ export function EmptyState({ query, onResetFilters, hasFilters }: EmptyStateProp
                     <li>• Gunakan nama genre atau provider</li>
                 </ul>
             </div>
+
+            {(activeProviders.length > 0 || activeGenres.length > 0) && (
+                <div className="mb-6 w-full max-w-md rounded-xl border border-slate-800 bg-slate-900/60 p-3 text-left text-xs text-slate-400">
+                    <p className="font-bold text-slate-300 mb-1">Filter aktif:</p>
+                    {activeProviders.length > 0 && (
+                        <p>Provider: {activeProviders.join(', ')}</p>
+                    )}
+                    {activeGenres.length > 0 && (
+                        <p>Genre: {activeGenres.join(', ')}</p>
+                    )}
+                </div>
+            )}
 
             {/* Reset button */}
             {hasFilters && onResetFilters && (

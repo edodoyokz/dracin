@@ -80,6 +80,7 @@ export const AVAILABLE_PROVIDERS = [
     { slug: 'shortmax', name: 'ShortMax' },
     { slug: 'flextv', name: 'FlexTV' },
     { slug: 'goodshort', name: 'GoodShort' },
+    { slug: 'netshort', name: 'NetShort' },
     { slug: 'reelshort', name: 'ReelShort' },
     { slug: 'cashdrama', name: 'CashDrama' },
 ];

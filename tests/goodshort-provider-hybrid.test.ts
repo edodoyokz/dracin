@@ -8,6 +8,8 @@ const {
   mockCaptainGet,
   mockMapHome,
   mockResolveEndpoint,
+  mockCacheGet,
+  mockCacheSet,
 } = vi.hoisted(() => ({
   mockGetProviderBySlug: vi.fn(),
   mockGetDramasByProvider: vi.fn(),
@@ -16,6 +18,8 @@ const {
   mockCaptainGet: vi.fn(),
   mockMapHome: vi.fn(),
   mockResolveEndpoint: vi.fn(),
+  mockCacheGet: vi.fn(),
+  mockCacheSet: vi.fn(),
 }));
 
 vi.mock('@/lib/db/providers-db', () => ({
@@ -43,6 +47,13 @@ vi.mock('@/lib/providers/adapters', () => ({
   }),
 }));
 
+vi.mock('@/lib/cache/redis', () => ({
+  getCacheManager: () => ({
+    get: mockCacheGet,
+    set: mockCacheSet,
+  }),
+}));
+
 vi.mock('@/lib/observability/logger', () => ({
   generateRequestId: () => 'req-goodshort',
   logger: {
@@ -56,6 +67,8 @@ describe('goodshort provider hybrid fallback', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.CAPTAIN_API_TOKEN = 'token';
+    mockCacheGet.mockResolvedValue(null);
+    mockCacheSet.mockResolvedValue(undefined);
 
     mockGetProviderBySlug.mockResolvedValue({
       id: 'p1',
@@ -150,6 +163,10 @@ describe('goodshort provider hybrid fallback', () => {
 
     expect(response.status).toBe(200);
     expect(mockCaptainGet).toHaveBeenCalled();
+    const firstNetshortUrl = mockCaptainGet.mock.calls[0]?.[0] as string;
+    expect(firstNetshortUrl).toContain('/api/v1/feed/1');
+    expect(firstNetshortUrl).toContain('page=1');
+    expect(firstNetshortUrl).toContain('pageSize=20');
     expect(payload.data.dramas).toHaveLength(1);
     expect(payload.data.dramas[0].providerDramaId).toBe('201');
   });
