@@ -43,6 +43,32 @@ export class FlexTVAdapter extends GenericProviderAdapter {
   constructor() {
     super('FlexTV', 'flextv', 'VIP9');
   }
+
+  mapHome(response: unknown): DramaCard[] {
+    const unwrapped = this.unwrapResponse(response);
+    if (Array.isArray(unwrapped)) {
+      return unwrapped.map(item => this.mapToDramaCard(item)).filter(Boolean) as DramaCard[];
+    }
+
+    if (!unwrapped || typeof unwrapped !== 'object') {
+      return [];
+    }
+
+    const root = unwrapped as Record<string, unknown>;
+    if (Array.isArray(root.tabs)) {
+      const dramas: unknown[] = [];
+      for (const tab of root.tabs) {
+        if (!tab || typeof tab !== 'object') continue;
+        const tabObj = tab as Record<string, unknown>;
+        if (Array.isArray(tabObj.series)) dramas.push(...tabObj.series);
+      }
+      if (dramas.length > 0) {
+        return dramas.map(item => this.mapToDramaCard(item)).filter(Boolean) as DramaCard[];
+      }
+    }
+
+    return super.mapHome(response);
+  }
 }
 
 // ===== DramaPops =====
@@ -186,8 +212,11 @@ export class ReelShortAdapter extends GenericProviderAdapter {
   }
 
   mapHome(response: unknown): DramaCard[] {
-    // ReelShort returns { code: 0, data: { ... } }
     const unwrapped = this.unwrapResponse(response);
+    if (Array.isArray(unwrapped)) {
+      return unwrapped.map(item => this.mapToDramaCard(item)).filter(Boolean) as DramaCard[];
+    }
+
     const resp = unwrapped as Record<string, unknown>;
     
     let dramas: unknown[] = [];
@@ -204,8 +233,12 @@ export class ReelShortAdapter extends GenericProviderAdapter {
         }
       }
     }
-    
-    return dramas.map(item => this.mapToDramaCard(item)).filter(Boolean) as DramaCard[];
+
+    if (dramas.length > 0) {
+      return dramas.map(item => this.mapToDramaCard(item)).filter(Boolean) as DramaCard[];
+    }
+
+    return super.mapHome(response);
   }
 }
 
@@ -216,21 +249,45 @@ export class GoodShortAdapter extends GenericProviderAdapter {
   }
 
   mapHome(response: unknown): DramaCard[] {
-    // GoodShort returns { data: { records: [...] } }
     const unwrapped = this.unwrapResponse(response);
+    if (Array.isArray(unwrapped)) {
+      return unwrapped.map(item => this.mapToDramaCard(item)).filter(Boolean) as DramaCard[];
+    }
+
     const resp = unwrapped as Record<string, unknown>;
     
     let dramas: unknown[] = [];
     
-    // Check for records in data
-    if (resp?.data && typeof resp.data === 'object') {
+    if (Array.isArray(resp?.data)) {
+      dramas = resp.data;
+    } else if (resp?.data && typeof resp.data === 'object') {
       const data = resp.data as Record<string, unknown>;
-      if (data.records && Array.isArray(data.records)) {
+      if (Array.isArray(data.records)) {
         dramas = data.records;
       }
     }
-    
-    return dramas.map(item => this.mapToDramaCard(item)).filter(Boolean) as DramaCard[];
+
+    if (dramas.length > 0) {
+      return dramas.map(item => this.mapToDramaCard(item)).filter(Boolean) as DramaCard[];
+    }
+
+    return super.mapHome(response);
+  }
+
+  mapSearch(response: unknown): DramaCard[] {
+    const unwrapped = this.unwrapResponse(response);
+    if (Array.isArray(unwrapped)) {
+      return unwrapped.map(item => this.mapToDramaCard(item)).filter(Boolean) as DramaCard[];
+    }
+
+    if (unwrapped && typeof unwrapped === 'object') {
+      const resp = unwrapped as Record<string, unknown>;
+      if (Array.isArray(resp.results)) {
+        return resp.results.map(item => this.mapToDramaCard(item)).filter(Boolean) as DramaCard[];
+      }
+    }
+
+    return super.mapSearch(response);
   }
 }
 
@@ -364,6 +421,27 @@ export class IDramaAdapter extends GenericProviderAdapter {
 export class NetShortAdapter extends GenericProviderAdapter {
   constructor() {
     super('NetShort', 'netshort', 'VIP9');
+  }
+
+  mapPlayback(response: unknown): PlaybackResponse {
+    const unwrapped = this.unwrapResponse(response);
+
+    if (unwrapped && typeof unwrapped === 'object' && !Array.isArray(unwrapped)) {
+      const obj = unwrapped as Record<string, unknown>;
+      const videos = obj.videos;
+      if (Array.isArray(videos) && videos.length > 0) {
+        const firstVideo = videos[0] as Record<string, unknown>;
+        const streamUrl = this.extractString(firstVideo, ['url', 'playUrl', 'src', 'videoUrl']);
+        if (streamUrl) {
+          return {
+            streamUrl,
+            expiresAt: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+          };
+        }
+      }
+    }
+
+    return super.mapPlayback(response);
   }
 }
 

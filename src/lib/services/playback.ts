@@ -127,35 +127,46 @@ export async function getPlaybackUrl(
     }
   }
 
-  const resolved = providerCatalog.resolveEndpoint(
-    providerSlug,
-    'playback',
-    {
-      id: providerDramaId,
-      code: providerDramaId,
-      bookId: providerDramaId,
-      dramaId: providerDramaId,
-      seriesId: providerDramaId,
-      playletId: providerDramaId,
-      vid: providerDramaId,
-      series_id: providerDramaId,
-      episode: providerEpisodeId,
-      chapterId: providerEpisodeId,
-      chapter: providerEpisodeId,
-      ep: providerEpisodeId,
-      section_id: providerEpisodeId,
+  let requestUrl = '';
+
+  if (providerSlug === 'netshort') {
+    const providerMeta = providerCatalog.getProvider(providerSlug);
+    if (!providerMeta) {
+      throw new Error('PLAYBACK_ENDPOINT_NOT_FOUND');
     }
-  );
+    requestUrl = `${providerMeta.baseUrl}/api/v1/episode/${encodeURIComponent(providerDramaId)}/${encodeURIComponent(providerEpisodeId)}`;
+  } else {
+    const resolved = providerCatalog.resolveEndpoint(
+      providerSlug,
+      'playback',
+      {
+        id: providerDramaId,
+        code: providerDramaId,
+        bookId: providerDramaId,
+        dramaId: providerDramaId,
+        seriesId: providerDramaId,
+        playletId: providerDramaId,
+        vid: providerDramaId,
+        series_id: providerDramaId,
+        episode: providerEpisodeId,
+        episodeNo: providerEpisodeId,
+        chapterId: providerEpisodeId,
+        chapter: providerEpisodeId,
+        ep: providerEpisodeId,
+        section_id: providerEpisodeId,
+      }
+    );
 
-  if (!resolved) {
-    throw new Error('PLAYBACK_ENDPOINT_NOT_FOUND');
-  }
+    if (!resolved) {
+      throw new Error('PLAYBACK_ENDPOINT_NOT_FOUND');
+    }
 
-  let requestUrl = resolved.url;
+    requestUrl = resolved.url;
 
-  if (providerSlug === 'shortmax' && providerEpisodeId) {
-    const sep = requestUrl.includes('?') ? '&' : '?';
-    requestUrl = `${requestUrl}${sep}ep=${encodeURIComponent(providerEpisodeId)}`;
+    if (providerSlug === 'shortmax' && providerEpisodeId) {
+      const sep = requestUrl.includes('?') ? '&' : '?';
+      requestUrl = `${requestUrl}${sep}ep=${encodeURIComponent(providerEpisodeId)}`;
+    }
   }
 
   logger.info('playback_resolved', {

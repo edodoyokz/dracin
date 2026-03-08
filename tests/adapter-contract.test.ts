@@ -14,6 +14,7 @@ import { GoodShortAdapter } from '../src/lib/providers/adapters/goodshort';
 import { FlexTVAdapter } from '../src/lib/providers/adapters/flextv';
 import { CashDramaAdapter } from '../src/lib/providers/adapters/cashdrama';
 import { ShortMaxAdapter } from '../src/lib/providers/adapters/shortmax';
+import { NetShortAdapter } from '../src/lib/providers/adapters/all-providers';
 import type { DramaCard, DramaDetail, EpisodeItem, PlaybackResponse } from '../src/lib/types';
 
 // ============================================================================
@@ -524,6 +525,25 @@ describe('ShortMaxAdapter', () => {
 
             assertValidPlaybackResponse(result);
             expect(result.streamUrl).toBe('https://cdn.example.com/sm-video.mp4');
+        });
+    });
+});
+
+describe('NetShortAdapter', () => {
+    const adapter = new NetShortAdapter();
+
+    describe('mapPlayback', () => {
+        it('should map videos array response to PlaybackResponse', () => {
+            const result = adapter.mapPlayback({
+                code: 200,
+                data: {
+                    episodeId: '2025422871068672015',
+                    videos: [{ url: 'https://cdn.example.com/netshort-video.mp4' }],
+                },
+            });
+
+            assertValidPlaybackResponse(result);
+            expect(result.streamUrl).toBe('https://cdn.example.com/netshort-video.mp4');
         });
     });
 });
