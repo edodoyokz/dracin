@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const originalEnv = process.env.CAPTAIN_API_TOKEN;
+
 const {
   mockGetProviderBySlug,
   mockGetDramasByProvider,
@@ -116,7 +118,7 @@ describe('netshort functional routes', () => {
     mockGetEpisodesByDramaId.mockResolvedValue([]);
   });
 
-  it('provider route uses netshort fallback pagination params', async () => {
+  it('provider route uses netshort category union with subtitle and dubbed audio filters', async () => {
     mockGetProviderBySlug.mockResolvedValue({
       id: 'p1',
       slug: 'netshort',
@@ -129,26 +131,9 @@ describe('netshort functional routes', () => {
     mockGetDramasByProvider.mockResolvedValue({ dramas: [], total: 0 });
     mockGetProviderGenres.mockResolvedValue([]);
     mockAssessCompleteness.mockReturnValue({ isPossiblyIncomplete: true, reason: 'db_empty' });
-    mockResolveEndpoint.mockReturnValue({
-      url: 'https://example.com/netshort/api/v1/feed/1',
-      missingParams: [],
-      endpoint: { method: 'GET', path: '/api/v1/feed/:page', pathParams: ['page'] },
-    });
-    mockCaptainGet.mockResolvedValue({ data: { data: [] } });
-    mockMapHome.mockReturnValueOnce([
-      {
-        id: 'netshort:1',
-        providerSlug: 'netshort',
-        providerDramaId: '1',
-        title: 'NetShort One',
-        coverUrl: 'https://example.com/net1.jpg',
-        episodeCount: 10,
-        tags: [],
-        isPremium: false,
-        providerName: 'NetShort',
-        vipLevel: 'VIP9',
-      },
-    ]).mockReturnValue([]);
+    mockCaptainGet
+      .mockResolvedValueOnce({ data: { data: [{ id: '201', title: 'Drama Satu', cover: 'https://example.com/one.jpg', labels: ['Fantasy'], isFinished: true }] } })
+      .mockResolvedValueOnce({ data: { data: [{ id: '201', title: 'Drama Satu', cover: 'https://example.com/one.jpg', labels: ['Fantasy'], isFinished: true }, { id: '202', title: '(Sulih suara) Drama Dua', cover: 'https://example.com/two.jpg', labels: ['Action'], isFinished: false }] } });
 
     const { GET } = await import('@/app/api/v1/providers/[slug]/route');
     const response = await GET(new Request('http://localhost/api/v1/providers/netshort?page=1&limit=20'), {
@@ -157,11 +142,15 @@ describe('netshort functional routes', () => {
     const payload = await response.json();
 
     expect(response.status).toBe(200);
+    expect(mockCaptainGet).toHaveBeenCalledTimes(2);
     const firstUrl = mockCaptainGet.mock.calls[0]?.[0] as string;
-    expect(firstUrl).toContain('page=1');
-    expect(firstUrl).toContain('pageSize=20');
-    expect(firstUrl).toContain('size=20');
-    expect(payload.data.dramas.length).toBe(1);
+    const secondUrl = mockCaptainGet.mock.calls[1]?.[0] as string;
+    expect(firstUrl).toContain('/api/v1/category/1');
+    expect(firstUrl).toContain('region=0');
+    expect(firstUrl).toContain('audio=1');
+    expect(secondUrl).toContain('audio=2');
+    expect(payload.data.dramas.length).toBe(2);
+    expect(payload.data.dramas[0].tags.some((tag: string) => /subtitle|dubbed/i.test(tag))).toBe(true);
   });
 
   it('episodes route forces netshort resync when db episodes are incomplete', async () => {

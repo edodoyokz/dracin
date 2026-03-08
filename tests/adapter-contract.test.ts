@@ -532,6 +532,45 @@ describe('ShortMaxAdapter', () => {
 describe('NetShortAdapter', () => {
     const adapter = new NetShortAdapter();
 
+    describe('mapDramaDetail', () => {
+        it('should map detail response with labels and totalEpisodes', () => {
+            const result = adapter.mapDramaDetail({
+                code: 200,
+                data: {
+                    id: '2021762099104944130',
+                    title: 'Dunia Game Ini, Aku yang Berkuasa',
+                    cover: 'https://cdn.example.com/netshort-cover.webp',
+                    description: 'Sinopsis netshort',
+                    labels: ['Fantasy', 'Subtitle'],
+                    totalEpisodes: 75,
+                },
+            });
+
+            assertValidDramaDetail(result, 'netshort');
+            expect(result.episodeCount).toBe(75);
+            expect(result.tags).toContain('Subtitle');
+        });
+    });
+
+    describe('mapEpisodes', () => {
+        it('should map embedded episodes response', () => {
+            const result = adapter.mapEpisodes({
+                code: 200,
+                data: {
+                    episodes: [
+                        { episodeNo: 1, episodeId: 'ep-1', cover: 'https://cdn.example.com/ep1.webp', isLocked: false },
+                        { episodeNo: 2, episodeId: 'ep-2', cover: 'https://cdn.example.com/ep2.webp', isLocked: true },
+                    ],
+                },
+            });
+
+            expect(result).toHaveLength(2);
+            assertValidEpisodeItem(result[0], 'netshort');
+            expect(result[0].providerEpisodeId).toBe('ep-1');
+            expect(result[1].isLocked).toBe(true);
+        });
+    });
+
     describe('mapPlayback', () => {
         it('should map videos array response to PlaybackResponse', () => {
             const result = adapter.mapPlayback({

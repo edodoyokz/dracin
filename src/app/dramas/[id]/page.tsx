@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Play, TrendingUp, Star, Clock, Film } from 'lucide-react';
 import { useDramaDetail } from '@/hooks/useDrama';
 import {
@@ -18,6 +18,7 @@ import { PageHeader } from '@/app/components/layout';
 
 export default function DramaDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
   const {
     drama,
@@ -64,7 +65,11 @@ export default function DramaDetailPage() {
   return (
     <div className="min-h-screen bg-slate-950">
       {/* Page Header - Transparent for hero visibility */}
-      <PageHeader title={drama.title} transparent />
+      <PageHeader
+        title={drama.title}
+        transparent
+        onBack={() => router.push('/')}
+      />
 
       {/* Hero Section */}
       <div className="relative w-full aspect-4/5 bg-slate-900">

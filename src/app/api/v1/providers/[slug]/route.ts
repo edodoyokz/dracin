@@ -32,8 +32,10 @@ export interface ProviderResponse {
 export const dynamic = 'force-dynamic';
 
 function pickPreferredDrama(existing: DramaCard, incoming: DramaCard): DramaCard {
-    const existingScore = (existing.episodeCount > 0 ? 2 : 0) + (existing.coverUrl ? 1 : 0) + (existing.rating ? 1 : 0);
-    const incomingScore = (incoming.episodeCount > 0 ? 2 : 0) + (incoming.coverUrl ? 1 : 0) + (incoming.rating ? 1 : 0);
+    const existingHasSubtitle = existing.tags.some(tag => /subtitle/i.test(tag));
+    const incomingHasSubtitle = incoming.tags.some(tag => /subtitle/i.test(tag));
+    const existingScore = (existingHasSubtitle ? 3 : 0) + (existing.episodeCount > 0 ? 2 : 0) + (existing.coverUrl ? 1 : 0) + (existing.rating ? 1 : 0);
+    const incomingScore = (incomingHasSubtitle ? 3 : 0) + (incoming.episodeCount > 0 ? 2 : 0) + (incoming.coverUrl ? 1 : 0) + (incoming.rating ? 1 : 0);
     return incomingScore > existingScore ? incoming : existing;
 }
 
@@ -62,6 +64,8 @@ function mergeAndDedupeDramas(dbDramas: DramaCard[], upstreamDramas: DramaCard[]
 }
 
 const NETSHORT_CATALOG_CACHE_TTL_SECONDS = 60 * 60;
+const NETSHORT_DEFAULT_REGION = '0';
+const NETSHORT_AUDIO_MODES = ['1', '2'] as const;
 
 function sortDramasForProvider(dramas: DramaCard[]): DramaCard[] {
     return [...dramas].sort((a, b) => {
@@ -75,6 +79,73 @@ function applyGenreFilter(dramas: DramaCard[], genre?: string): DramaCard[] {
     if (!genre || genre === 'all') return dramas;
     const normalizedGenre = genre.toLowerCase();
     return dramas.filter(drama => drama.tags.some(tag => tag.toLowerCase() === normalizedGenre));
+}
+
+function normalizeNetshortCategoryDrama(item: Record<string, unknown>, audioMode: string): DramaCard | null {
+    const id = typeof item.id === 'string' || typeof item.id === 'number' ? String(item.id) : '';
+    const title = typeof item.title === 'string' ? item.title.trim() : '';
+    const cover = typeof item.cover === 'string' ? item.cover : '';
+    const labels = Array.isArray(item.labels) ? item.labels.filter((value): value is string => typeof value === 'string' && value.length > 0) : [];
+    const isFinished = typeof item.isFinished === 'boolean' ? item.isFinished : false;
+
+    if (!id || !title) return null;
+
+    const audioTag = audioMode === '1' ? 'Subtitle' : 'Dubbed';
+
+    return {
+        id: `netshort:${id}`,
+        providerSlug: 'netshort',
+        providerDramaId: id,
+        title,
+        coverUrl: cover,
+        episodeCount: 1,
+        tags: [...labels, audioTag],
+        isPremium: !isFinished,
+        providerName: 'NetShort',
+        vipLevel: 'VIP9',
+    };
+}
+
+async function fetchNetshortCategoryCatalog(params: {
+    page: number;
+    limit: number;
+    requestId: string;
+}): Promise<DramaCard[]> {
+    const { page, limit, requestId } = params;
+    const token = process.env.CAPTAIN_API_TOKEN;
+    if (!token) return [];
+
+    const providerMeta = typeof (providerCatalog as { getProvider?: (providerSlug: string) => { baseUrl?: string } | undefined }).getProvider === 'function'
+        ? (providerCatalog as { getProvider: (providerSlug: string) => { baseUrl?: string } | undefined }).getProvider('netshort')
+        : undefined;
+    const baseUrl = providerMeta?.baseUrl || 'https://captain.sapimu.au/netshort';
+    const client = createCaptainClient(token);
+    const union: DramaCard[] = [];
+
+    for (const audioMode of NETSHORT_AUDIO_MODES) {
+        const url = new URL(`${baseUrl}/api/v1/category/${page}`);
+        url.searchParams.set('region', NETSHORT_DEFAULT_REGION);
+        url.searchParams.set('audio', audioMode);
+        url.searchParams.set('tagId', '');
+        url.searchParams.set('pageSize', String(limit));
+        url.searchParams.set('limit', String(limit));
+
+        const response = await client.get(url.toString(), {
+            provider: 'netshort',
+            requestId,
+            timeout: 15000,
+        });
+
+        const root = response.data as { data?: unknown };
+        const items = Array.isArray(root?.data) ? root.data : [];
+        for (const item of items) {
+            if (!item || typeof item !== 'object') continue;
+            const mapped = normalizeNetshortCategoryDrama(item as Record<string, unknown>, audioMode);
+            if (mapped) union.push(mapped);
+        }
+    }
+
+    return mergeAndDedupeDramas([], union, 'netshort');
 }
 
 async function fetchProviderFallbackPage(params: {
@@ -229,58 +300,29 @@ export async function GET(
                     cache = null;
                 }
 
-                const cacheKey = `provider:netshort:catalog:v2:limit:${limit}`;
+                const cacheKey = `provider:netshort:category:v3:page:${page}:limit:${limit}`;
                 const cached = cache ? await cache.get<DramaCard[]>(cacheKey) : null;
 
                 if (cached && cached.length > 0) {
                     upstreamResults = cached;
                 } else {
-                    const maxFallbackPages = 4;
-                    const endpointTemplates = [
-                        '/api/v1/feed/:page',
-                        '/api/v1/explore/:page',
-                        '/api/v1/new-dubbing/:page',
-                        '/api/v1/vip-up/:page',
-                    ];
-                    const providerMeta = typeof (providerCatalog as { getProvider?: (providerSlug: string) => { baseUrl?: string } | undefined }).getProvider === 'function'
-                        ? (providerCatalog as { getProvider: (providerSlug: string) => { baseUrl?: string } | undefined }).getProvider(slug)
-                        : undefined;
-                    const baseUrl = providerMeta?.baseUrl || 'https://api.netshort.com';
-
-                    const upstreamUnion: DramaCard[] = [];
-                    for (const endpointTemplate of endpointTemplates) {
-                        for (let index = 0; index < maxFallbackPages; index++) {
-                            const upstreamPage = 1 + index;
-                            const url = `${baseUrl}${endpointTemplate.replace(':page', String(upstreamPage))}`;
-
-                            try {
-                                const pageItems = await fetchProviderFallbackPage({
-                                    slug,
-                                    page: upstreamPage,
-                                    limit,
-                                    requestId,
-                                    overrideUrl: url,
-                                });
-
-                                if (pageItems.length === 0) {
-                                    break;
-                                }
-
-                                upstreamUnion.push(...pageItems);
-                            } catch (error) {
-                                logger.warn('provider_netshort_fallback_page_failed', {
-                                    requestId,
-                                    slug,
-                                    url,
-                                    page: upstreamPage,
-                                    error: error instanceof Error ? error.message : 'unknown',
-                                });
-                                break;
-                            }
-                        }
+                    try {
+                        upstreamResults = await fetchNetshortCategoryCatalog({
+                            page,
+                            limit,
+                            requestId,
+                        });
+                    } catch (error) {
+                        logger.warn('provider_netshort_category_failed', {
+                            requestId,
+                            slug,
+                            page,
+                            limit,
+                            error: error instanceof Error ? error.message : 'unknown',
+                        });
+                        upstreamResults = [];
                     }
 
-                    upstreamResults = mergeAndDedupeDramas([], upstreamUnion, slug);
                     if (upstreamResults.length > 0 && cache) {
                         await cache.set(cacheKey, upstreamResults, NETSHORT_CATALOG_CACHE_TTL_SECONDS);
                     }

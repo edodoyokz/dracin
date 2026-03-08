@@ -1,5 +1,5 @@
 import { GenericProviderAdapter } from './generic';
-import type { DramaCard, EpisodeItem, PlaybackResponse } from '@/lib/types';
+import type { DramaCard, DramaDetail, EpisodeItem, PlaybackResponse } from '@/lib/types';
 
 // ===== HiShort =====
 export class HiShortAdapter extends GenericProviderAdapter {
@@ -421,6 +421,81 @@ export class IDramaAdapter extends GenericProviderAdapter {
 export class NetShortAdapter extends GenericProviderAdapter {
   constructor() {
     super('NetShort', 'netshort', 'VIP9');
+  }
+
+  mapDramaDetail(response: unknown): DramaDetail {
+    const unwrapped = this.unwrapResponse(response);
+
+    if (unwrapped && typeof unwrapped === 'object' && !Array.isArray(unwrapped)) {
+      const obj = unwrapped as Record<string, unknown>;
+      const labels = Array.isArray(obj.labels) ? obj.labels.filter((value): value is string => typeof value === 'string') : [];
+      const title = this.extractString(obj, ['title', 'name']) || 'Untitled';
+      const providerDramaId = this.extractString(obj, ['id', 'dramaId']) || '';
+      const coverUrl = this.extractString(obj, ['cover', 'coverUrl', 'poster']) || '';
+      const synopsis = this.extractString(obj, ['description', 'synopsis', 'intro']) || '';
+      const totalEpisodesValue = obj.totalEpisodes ?? obj.episodeCount ?? obj.episodes;
+      const totalEpisodes = typeof totalEpisodesValue === 'number'
+        ? totalEpisodesValue
+        : Number.parseInt(String(totalEpisodesValue ?? '0'), 10) || 0;
+
+      if (providerDramaId) {
+        return {
+          id: `${this.slug}:${providerDramaId}`,
+          providerSlug: this.slug,
+          providerDramaId,
+          title,
+          coverUrl,
+          episodeCount: totalEpisodes,
+          rating: undefined,
+          tags: labels,
+          isPremium: false,
+          providerName: this.name,
+          vipLevel: this.vipLevel,
+          synopsis,
+          genres: labels,
+          language: 'id',
+          lastUpdated: new Date().toISOString(),
+        };
+      }
+    }
+
+    return super.mapDramaDetail(response);
+  }
+
+  mapEpisodes(response: unknown): EpisodeItem[] {
+    const unwrapped = this.unwrapResponse(response);
+
+    if (unwrapped && typeof unwrapped === 'object' && !Array.isArray(unwrapped)) {
+      const obj = unwrapped as Record<string, unknown>;
+      const episodesValue = obj.episodes;
+      if (Array.isArray(episodesValue)) {
+        return episodesValue
+          .flatMap((episode, index) => {
+            if (!episode || typeof episode !== 'object') return [];
+            const ep = episode as Record<string, unknown>;
+            const episodeNoValue = ep.episodeNo ?? ep.number ?? ep.ep;
+            const episodeNo = typeof episodeNoValue === 'number'
+              ? episodeNoValue
+              : Number.parseInt(String(episodeNoValue ?? index + 1), 10) || index + 1;
+            const providerEpisodeId = this.extractString(ep, ['episodeId', 'id']) || String(episodeNo);
+            const thumbnailUrl = this.extractString(ep, ['cover', 'thumbnail', 'image']) || undefined;
+            const lockedValue = ep.isLocked ?? ep.locked;
+            const locked = lockedValue === true || lockedValue === 1 || lockedValue === '1' || lockedValue === 'true';
+
+            return [{
+              episodeId: `${this.slug}:${providerEpisodeId}`,
+              providerEpisodeId,
+              episodeNo,
+              title: `Episode ${episodeNo}`,
+              durationMs: 0,
+              isLocked: locked,
+              thumbnailUrl,
+            } satisfies EpisodeItem];
+          });
+      }
+    }
+
+    return super.mapEpisodes(response);
   }
 
   mapPlayback(response: unknown): PlaybackResponse {
