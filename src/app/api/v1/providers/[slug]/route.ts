@@ -4,6 +4,7 @@ import { providerCatalog } from '@/lib/providers/catalog';
 import { getAdapter } from '@/lib/providers/adapters';
 import { getCacheManager } from '@/lib/cache/redis';
 import { getProviderBySlug, getDramasByProvider, getProviderGenres, assessProviderCatalogCompleteness } from '@/lib/db/providers-db';
+import { dedupeNetshortVariantsByTitle, pickPreferredNetshortVariant } from '@/lib/providers/netshort';
 import { logger, generateRequestId } from '@/lib/observability/logger';
 import type { ApiResponse, DramaCard } from '@/lib/types';
 
@@ -32,6 +33,10 @@ export interface ProviderResponse {
 export const dynamic = 'force-dynamic';
 
 function pickPreferredDrama(existing: DramaCard, incoming: DramaCard): DramaCard {
+    if (existing.providerSlug === 'netshort' && incoming.providerSlug === 'netshort') {
+        return pickPreferredNetshortVariant(existing, incoming);
+    }
+
     const existingHasSubtitle = existing.tags.some(tag => /subtitle/i.test(tag));
     const incomingHasSubtitle = incoming.tags.some(tag => /subtitle/i.test(tag));
     const existingScore = (existingHasSubtitle ? 3 : 0) + (existing.episodeCount > 0 ? 2 : 0) + (existing.coverUrl ? 1 : 0) + (existing.rating ? 1 : 0);
@@ -145,7 +150,7 @@ async function fetchNetshortCategoryCatalog(params: {
         }
     }
 
-    return mergeAndDedupeDramas([], union, 'netshort');
+    return dedupeNetshortVariantsByTitle(mergeAndDedupeDramas([], union, 'netshort'));
 }
 
 async function fetchProviderFallbackPage(params: {

@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './client';
+import { normalizeNetshortVariantTitle, pickPreferredNetshortVariant } from '../providers/netshort';
 import type { DramaCard, DramaDetail, DramaWithRank, EpisodeItem, FeaturedDrama, ProviderInfo, ProviderSectionData } from '../types';
 
 export interface DbDrama {
@@ -92,13 +93,43 @@ export async function getDramaByProviderId(
     `)
     .eq('provider_slug', providerSlug)
     .eq('provider_drama_id', providerDramaId)
-    .single();
+    .limit(1)
+    .maybeSingle();
 
-  if (error || !data) {
+  if (!error && data) {
+    return mapDbDramaToDetail(data as DbDrama);
+  }
+
+  if (providerSlug !== 'netshort') {
     return null;
   }
 
-  return mapDbDramaToDetail(data as DbDrama);
+  const normalizedTitle = normalizeNetshortVariantTitle(providerDramaId);
+  if (!normalizedTitle) {
+    return null;
+  }
+
+  const { data: variants, error: variantsError } = await supabase
+    .from('dramas')
+    .select(`
+      *,
+      providers!inner(name)
+    `)
+    .eq('provider_slug', providerSlug)
+    .limit(200);
+
+  if (variantsError || !variants || variants.length === 0) {
+    return null;
+  }
+
+  const matched = (variants as DbDrama[])
+    .map(mapDbDramaToDetail)
+    .filter((drama) => normalizeNetshortVariantTitle(drama.title) === normalizedTitle)
+    .reduce<DramaDetail | null>((preferred, drama) => (
+      preferred ? pickPreferredNetshortVariant(preferred, drama) : drama
+    ), null);
+
+  return matched;
 }
 
 export async function getEpisodesByDramaId(dramaId: string): Promise<EpisodeItem[]> {

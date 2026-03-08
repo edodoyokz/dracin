@@ -3,6 +3,7 @@ import { providerCatalog } from '../providers/catalog';
 import { getAdapter } from '../providers/adapters';
 import { createCaptainClient } from '../http/captain-client';
 import { logger } from '../observability/logger';
+import { normalizeNetshortVariantTitle, hasNetshortSubtitleSignal } from '../providers/netshort';
 import type { DramaCard, DramaDetail } from '../types';
 
 const captainToken = process.env.CAPTAIN_API_TOKEN || '';
@@ -107,6 +108,34 @@ async function upsertDramaToDb(
   existingId?: string
 ): Promise<UpsertDramaResult> {
   const supabase = getSupabaseClient();
+
+  if (providerSlug === 'netshort' && hasNetshortSubtitleSignal({ title: dramaDetail.title, tags: dramaDetail.tags })) {
+    const normalizedTitle = normalizeNetshortVariantTitle(dramaDetail.title);
+    if (normalizedTitle) {
+      const { data: existingVariants } = await supabase
+        .from('dramas')
+        .select('id, title, tags')
+        .eq('provider_slug', providerSlug)
+        .limit(200);
+
+      const duplicateIds = (existingVariants || [])
+        .filter((variant) => normalizeNetshortVariantTitle(String(variant.title || '')) === normalizedTitle)
+        .map((variant) => variant.id)
+        .filter((id): id is string => typeof id === 'string' && id !== existingId);
+
+      if (duplicateIds.length > 0) {
+        await supabase
+          .from('episodes')
+          .delete()
+          .in('drama_id', duplicateIds);
+
+        await supabase
+          .from('dramas')
+          .delete()
+          .in('id', duplicateIds);
+      }
+    }
+  }
 
   const dramaData = {
     provider_slug: providerSlug,

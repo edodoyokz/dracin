@@ -3,6 +3,7 @@ import { providerCatalog } from '../providers/catalog';
 import { getAdapter } from '../providers/adapters';
 import { createCaptainClient } from '../http/captain-client';
 import { logger } from '../observability/logger';
+import { normalizeNetshortVariantTitle, hasNetshortSubtitleSignal } from '../providers/netshort';
 import type { DramaDetail } from '../types';
 
 const captainToken = process.env.CAPTAIN_API_TOKEN || '';
@@ -112,6 +113,34 @@ export async function syncDramaFromProvider(
     }
 
     const dramaDetail = adapter.mapDramaDetail(response.data);
+
+    if (providerSlug === 'netshort' && hasNetshortSubtitleSignal({ title: dramaDetail.title, tags: dramaDetail.tags })) {
+      const normalizedTitle = normalizeNetshortVariantTitle(dramaDetail.title);
+      if (normalizedTitle) {
+        const { data: existingVariants } = await supabase
+          .from('dramas')
+          .select('id, title')
+          .eq('provider_slug', providerSlug)
+          .limit(200);
+
+        const duplicateIds = (existingVariants || [])
+          .filter((variant) => normalizeNetshortVariantTitle(String(variant.title || '')) === normalizedTitle)
+          .map((variant) => variant.id)
+          .filter((id): id is string => typeof id === 'string');
+
+        if (duplicateIds.length > 0) {
+          await supabase
+            .from('episodes')
+            .delete()
+            .in('drama_id', duplicateIds);
+
+          await supabase
+            .from('dramas')
+            .delete()
+            .in('id', duplicateIds);
+        }
+      }
+    }
 
     // Insert drama into database
     const { data: newDrama, error } = await supabase

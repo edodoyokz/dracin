@@ -54,6 +54,7 @@ vi.mock('@/lib/http/captain-client', () => ({
 vi.mock('@/lib/providers/catalog', () => ({
   providerCatalog: {
     resolveEndpoint: mockResolveEndpoint,
+    getProvider: vi.fn(() => ({ baseUrl: 'https://captain.sapimu.au/netshort' })),
   },
 }));
 
@@ -150,7 +151,36 @@ describe('netshort functional routes', () => {
     expect(firstUrl).toContain('audio=1');
     expect(secondUrl).toContain('audio=2');
     expect(payload.data.dramas.length).toBe(2);
-    expect(payload.data.dramas[0].tags.some((tag: string) => /subtitle|dubbed/i.test(tag))).toBe(true);
+    expect(payload.data.dramas.some((drama: { tags: string[] }) => drama.tags.includes('Subtitle'))).toBe(true);
+  });
+
+  it('provider route prefers subtitle variant when title collides with dubbed variant', async () => {
+    mockGetProviderBySlug.mockResolvedValue({
+      id: 'p1',
+      slug: 'netshort',
+      name: 'NetShort',
+      rating: 4.5,
+      dramaCount: 0,
+      episodeCount: 0,
+      status: 'active',
+    });
+    mockGetDramasByProvider.mockResolvedValue({ dramas: [], total: 0 });
+    mockGetProviderGenres.mockResolvedValue([]);
+    mockAssessCompleteness.mockReturnValue({ isPossiblyIncomplete: true, reason: 'db_empty' });
+    mockCaptainGet
+      .mockResolvedValueOnce({ data: { data: [{ id: 'sub-1', title: 'Cinta Terlarang', cover: 'https://example.com/sub.jpg', labels: ['Romance'], isFinished: true }] } })
+      .mockResolvedValueOnce({ data: { data: [{ id: 'dub-1', title: '(Sulih suara) Cinta Terlarang', cover: 'https://example.com/dub.jpg', labels: ['Romance'], isFinished: true }] } });
+
+    const { GET } = await import('@/app/api/v1/providers/[slug]/route');
+    const response = await GET(new Request('http://localhost/api/v1/providers/netshort?page=1&limit=20'), {
+      params: Promise.resolve({ slug: 'netshort' }),
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.data.dramas).toHaveLength(1);
+    expect(payload.data.dramas[0].providerDramaId).toBe('sub-1');
+    expect(payload.data.dramas[0].tags).toContain('Subtitle');
   });
 
   it('episodes route forces netshort resync when db episodes are incomplete', async () => {
