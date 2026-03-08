@@ -38,15 +38,22 @@ export async function GET(
   }
 
   const { id } = validation.data;
+  const normalizedId = (() => {
+    try {
+      return decodeURIComponent(id);
+    } catch {
+      return id;
+    }
+  })();
 
   try {
-    let drama = await getDramaById(id);
+    let drama = await getDramaById(normalizedId);
     let providerSlug: string | undefined;
     let providerDramaId: string | undefined;
 
     // Parse provider:dramaId format
-    if (!drama && id.includes(':')) {
-      const [slug, ...dramaIdParts] = id.split(':');
+    if (!drama && normalizedId.includes(':')) {
+      const [slug, ...dramaIdParts] = normalizedId.split(':');
       providerSlug = slug;
       providerDramaId = dramaIdParts.join(':');
 
@@ -89,7 +96,7 @@ export async function GET(
         meta: { requestId, timestamp: new Date().toISOString() },
         error: {
           code: 'NOT_FOUND',
-          message: `Drama with id ${id} not found`,
+          message: `Drama with id ${normalizedId} not found`,
         },
       };
 
@@ -112,7 +119,7 @@ export async function GET(
 
     logger.info('drama_detail_fetched', {
       requestId,
-      requestedDramaId: id,
+      requestedDramaId: normalizedId,
       dramaId: drama.id,
       relatedCount: related.length,
       latencyMs: Date.now() - startTime,
@@ -122,7 +129,7 @@ export async function GET(
   } catch (error) {
     logger.error('drama_detail_fetch_failed', {
       requestId,
-      dramaId: id,
+      dramaId: normalizedId,
       error: error instanceof Error ? error.message : 'Unknown error',
       latencyMs: Date.now() - startTime,
     });

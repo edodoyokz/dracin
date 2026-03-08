@@ -143,7 +143,7 @@ export default function SearchPage() {
   const hasFilters = activeFilterCount > 0;
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-neutral-950">
       {/* Header */}
       <PageHeader
         title="Cari Drama"
@@ -152,7 +152,7 @@ export default function SearchPage() {
             onClick={() => setIsFilterOpen(true)}
             className={`p-2 rounded-lg transition-colors relative ${hasFilters
               ? 'bg-red-600 text-white'
-              : 'text-slate-400 hover:bg-slate-900'
+              : 'text-neutral-400 hover:bg-neutral-900'
               }`}
             aria-label="Buka filter"
           >
@@ -172,7 +172,7 @@ export default function SearchPage() {
           <form onSubmit={handleSearch}>
             <div className="relative">
               <Search
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500"
                 size={18}
               />
               <input
@@ -185,11 +185,11 @@ export default function SearchPage() {
                   setShowAutocomplete(true);
                 }}
                 onFocus={() => setShowAutocomplete(true)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-3.5 pl-12 pr-4 outline-none focus:ring-2 focus:ring-red-600/30 text-sm"
+                className="w-full bg-neutral-900 border border-neutral-800 rounded-2xl py-3.5 pl-12 pr-4 outline-none focus:ring-2 focus:ring-red-600/30 text-sm"
               />
               {loading && (
                 <Loader2
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 animate-spin"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 animate-spin"
                   size={18}
                 />
               )}
@@ -220,7 +220,7 @@ export default function SearchPage() {
         {/* Popular Tags (only show before first search) */}
         {!searched && (
           <div className="space-y-3">
-            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">
+            <h3 className="text-xs font-black text-neutral-500 uppercase tracking-widest">
               Pencarian Populer
             </h3>
             <div className="flex flex-wrap gap-2">
@@ -228,7 +228,7 @@ export default function SearchPage() {
                 <button
                   key={tag}
                   onClick={() => handleSelectRecent(tag)}
-                  className="px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors"
+                  className="px-4 py-2 bg-neutral-900 border border-neutral-800 rounded-xl text-xs font-bold hover:bg-neutral-800 transition-colors"
                 >
                   {tag}
                 </button>
@@ -249,7 +249,7 @@ export default function SearchPage() {
 
             {/* Results Header */}
             <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-neutral-400">
                 <span className="font-bold text-white">{filteredResults.length}</span>{' '}
                 hasil untuk "{query}"
               </p>
@@ -273,14 +273,14 @@ export default function SearchPage() {
                 {hasMore && (
                   <div ref={loadMoreRef} className="flex justify-center py-8">
                     {loading ? (
-                      <div className="flex items-center space-x-2 text-slate-500">
+                      <div className="flex items-center space-x-2 text-neutral-500">
                         <Loader2 size={20} className="animate-spin" />
                         <span className="text-sm font-medium">Memuat lebih...</span>
                       </div>
                     ) : (
                       <button
                         onClick={loadMore}
-                        className="px-6 py-3 bg-slate-900 border border-slate-800 rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors"
+                        className="px-6 py-3 bg-neutral-900 border border-neutral-800 rounded-xl text-sm font-bold hover:bg-neutral-800 transition-colors"
                       >
                         Muat Lebih
                       </button>

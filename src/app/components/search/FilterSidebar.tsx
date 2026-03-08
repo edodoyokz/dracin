@@ -37,18 +37,18 @@ export function FilterSidebar({
 
             {/* Sidebar */}
             <div
-                className={`fixed top-0 left-0 h-full w-80 max-w-[85vw] bg-slate-900 z-50 transform transition-transform duration-300 ease-out ${isOpen ? 'translate-x-0' : '-translate-x-full'
+                className={`fixed top-0 left-0 h-full w-80 max-w-[85vw] bg-neutral-900 z-50 transform transition-transform duration-300 ease-out ${isOpen ? 'translate-x-0' : '-translate-x-full'
                     }`}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b border-slate-800">
+                <div className="flex items-center justify-between p-4 border-b border-neutral-800">
                     <div className="flex items-center space-x-2">
                         <Filter size={18} className="text-red-500" />
                         <h2 className="font-bold text-lg">Filter Pencarian</h2>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+                        className="p-2 hover:bg-neutral-800 rounded-lg transition-colors"
                     >
                         <X size={20} />
                     </button>
@@ -58,7 +58,7 @@ export function FilterSidebar({
                 <div className="p-4 space-y-6 overflow-y-auto h-[calc(100%-140px)]">
                     {/* Provider Section */}
                     <div>
-                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">
+                        <h3 className="text-sm font-bold text-neutral-400 uppercase tracking-wider mb-3">
                             Provider
                         </h3>
                         <div className="space-y-2">
@@ -76,7 +76,7 @@ export function FilterSidebar({
                                             });
                                         }
                                     }}
-                                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-red-600 focus:ring-red-600/30"
+                                    className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-red-600 focus:ring-red-600/30"
                                 />
                                 <span className="text-sm group-hover:text-white transition-colors">
                                     Semua Provider
@@ -92,7 +92,7 @@ export function FilterSidebar({
                                         type="checkbox"
                                         checked={filters.providers.includes(provider.slug)}
                                         onChange={() => onToggleProvider(provider.slug)}
-                                        className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-red-600 focus:ring-red-600/30"
+                                        className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-red-600 focus:ring-red-600/30"
                                     />
                                     <span className="text-sm group-hover:text-white transition-colors">
                                         {provider.name}
@@ -104,7 +104,7 @@ export function FilterSidebar({
 
                     {/* Genre Section */}
                     <div>
-                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">
+                        <h3 className="text-sm font-bold text-neutral-400 uppercase tracking-wider mb-3">
                             Genre
                         </h3>
                         <div className="grid grid-cols-2 gap-2">
@@ -117,7 +117,7 @@ export function FilterSidebar({
                                         type="checkbox"
                                         checked={filters.genres.includes(genre)}
                                         onChange={() => onToggleGenre(genre)}
-                                        className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-red-600 focus:ring-red-600/30"
+                                        className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-red-600 focus:ring-red-600/30"
                                     />
                                     <span className="text-sm group-hover:text-white transition-colors">
                                         {genre}
@@ -129,12 +129,12 @@ export function FilterSidebar({
                 </div>
 
                 {/* Footer */}
-                <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-800 bg-slate-900">
+                <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-neutral-800 bg-neutral-900">
                     <div className="flex space-x-3">
                         <button
                             onClick={onReset}
                             disabled={activeFilterCount === 0}
-                            className="flex-1 flex items-center justify-center space-x-2 py-3 px-4 bg-slate-800 rounded-xl font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-700 transition-colors"
+                            className="flex-1 flex items-center justify-center space-x-2 py-3 px-4 bg-neutral-800 rounded-xl font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-neutral-700 transition-colors"
                         >
                             <RotateCcw size={16} />
                             <span>Reset</span>

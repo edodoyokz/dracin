@@ -1,14 +1,37 @@
 # Production Readiness Plan - dracinhub
 
-**Document Version**: 1.3  
-**Last Updated**: 2026-02-24  
-**Status**: MVP Complete → Production Preparation
+**Document Version**: 1.4  
+**Last Updated**: 2026-02-26  
+**Status**: MVP Stabilized for 41 Active Providers
 
 ---
 
 ## Executive Summary
 
 Platform MVP telah selesai dengan 37 file implementasi. Dokumen ini merinci langkah-langkah untuk membuat platform production-ready dengan fokus pada: deployment, testing, monitoring, security, dan scalability.
+
+### Verification Snapshot (2026-02-26)
+
+- [x] `npm run test` -> PASS (`288/288`)
+- [x] `npm run lint` -> PASS (`tsc --noEmit`)
+- [x] `npm run build` -> PASS (Next.js 16 production build)
+- [x] `npm run probe:providers` -> PASS (artifact generated)
+- [x] `npm run analyze:homepage` -> PASS (artifact generated)
+- [x] `GET /api/v1/home/diagnostics` tersedia untuk summary operasional
+- [x] Adapter compatibility entrypoints restored (`reelshort`, `goodshort`, `flextv`)
+- [x] Watch-progress contract tests aligned with update-first persistence strategy
+- [x] Watch-progress validation tightened (`dramaId` must be UUID or `provider:id`)
+- [x] Default rate-limit env values aligned with test contract (`45/10`)
+
+### Remaining External Actions
+
+- [ ] Jalankan ingestion ke environment production Supabase.
+- [ ] Review hasil `reports/provider-probe-latest.json` dan `reports/homepage-analysis-latest.json` dari environment yang punya akses jaringan ke Captain API.
+- [ ] Konfigurasikan deployment secrets di Vercel/host target.
+- [ ] Tetapkan policy aktivasi provider berdasarkan health score:
+  - `healthy >= 80`
+  - `degraded 50-79`
+  - `unavailable < 50`
 
 ---
 

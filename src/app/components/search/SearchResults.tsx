@@ -24,7 +24,7 @@ function getProviderColor(slug: string): string {
         reelshort: 'bg-pink-500/20 text-pink-400 border-pink-500/30',
         cashdrama: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
     };
-    return colors[slug] || 'bg-slate-700 text-slate-300 border-slate-600';
+    return colors[slug] || 'bg-neutral-700 text-neutral-300 border-neutral-600';
 }
 
 interface ResultCardProps {
@@ -38,7 +38,7 @@ function ResultCard({ drama }: ResultCardProps) {
             className="group block space-y-2"
         >
             {/* Thumbnail */}
-            <div className="relative aspect-2/3 rounded-xl overflow-hidden bg-slate-900">
+            <div className="relative aspect-2/3 rounded-xl overflow-hidden bg-neutral-900">
                 <img
                     src={drama.coverUrl}
                     alt={drama.title}
@@ -96,13 +96,13 @@ function ResultCard({ drama }: ResultCardProps) {
                         {drama.tags.slice(0, 2).map((tag) => (
                             <span
                                 key={tag}
-                                className="text-[10px] text-slate-500 font-medium"
+                                className="text-[10px] text-neutral-500 font-medium"
                             >
                                 #{tag}
                             </span>
                         ))}
                         {drama.tags.length > 2 && (
-                            <span className="text-[10px] text-slate-600">
+                            <span className="text-[10px] text-neutral-600">
                                 +{drama.tags.length - 2}
                             </span>
                         )}

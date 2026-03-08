@@ -13,6 +13,7 @@ import { logger, generateRequestId } from '@/lib/observability/logger';
 import { preflightEnvCheck } from '@/lib/config/env';
 import { getCacheManager } from '@/lib/cache/redis';
 import { fetchHomeFromProviders } from '@/lib/services/provider-aggregator';
+import { createProviderHealthGate, getLatestProviderHealthReport } from '@/lib/homepage/quality';
 import type { ApiResponse, HomeResponseData, NewReleaseGroup, ContinueWatchingItem, GenreData, DramaCard, ProviderInfo } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -161,11 +162,15 @@ async function buildHomeData(
   requestId: string,
   userId: string | null
 ): Promise<HomeResponseData> {
+  const providerHealthReport = await getLatestProviderHealthReport();
+  const providerHealthGate = createProviderHealthGate(providerHealthReport);
+
   // Fetch provider content from all 41 active providers
   const providerResultsPromise = fetchHomeFromProviders({
     maxProviders: 41,
     shuffle: true,
     requestId,
+    healthGate: providerHealthGate,
   });
 
   // Fetch all sections in parallel

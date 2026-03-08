@@ -146,4 +146,5 @@ describe('Provider Playback Coverage - All 41 Active Providers', () => {
             expect(() => adapter.mapPlayback({ title: 'No URL' })).toThrow('No stream URL found');
         });
     });
+
 });

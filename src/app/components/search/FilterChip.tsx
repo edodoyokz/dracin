@@ -50,14 +50,14 @@ export function FilterChip({
             {filters.genres.map((genre) => (
                 <div
                     key={genre}
-                    className="flex items-center space-x-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-full"
+                    className="flex items-center space-x-1 px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-full"
                 >
-                    <span className="text-xs font-bold text-slate-300">{genre}</span>
+                    <span className="text-xs font-bold text-neutral-300">{genre}</span>
                     <button
                         onClick={() => onRemoveGenre(genre)}
-                        className="p-0.5 hover:bg-slate-700 rounded-full transition-colors"
+                        className="p-0.5 hover:bg-neutral-700 rounded-full transition-colors"
                     >
-                        <X size={12} className="text-slate-500" />
+                        <X size={12} className="text-neutral-500" />
                     </button>
                 </div>
             ))}

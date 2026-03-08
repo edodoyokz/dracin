@@ -383,9 +383,11 @@ export class GenericProviderAdapter extends BaseProviderAdapter implements Provi
       // Extract slug if present
       const slug = this.extractString(obj, ['slug', 'urlSlug', 'url_slug']);
 
+      const normalizedEpisodeId = episodeId || `${episodeNo}`;
+
       return {
-        episodeId: episodeId || `${episodeNo}`,
-        providerEpisodeId: episodeId || undefined,
+        episodeId: `${this.slug}:${normalizedEpisodeId}`,
+        providerEpisodeId: normalizedEpisodeId || undefined,
         episodeNo,
         chapterId: chapterId || undefined,
         slug: slug || undefined,

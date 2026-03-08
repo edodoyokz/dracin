@@ -22,8 +22,8 @@ export function RecentSearches({
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                    <Clock size={14} className="text-slate-500" />
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                    <Clock size={14} className="text-neutral-500" />
+                    <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-widest">
                         Pencarian Terbaru
                     </h3>
                 </div>
@@ -40,11 +40,11 @@ export function RecentSearches({
                 {searches.map((search) => (
                     <div
                         key={search}
-                        className="group flex items-center space-x-1 px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 transition-colors"
+                        className="group flex items-center space-x-1 px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-xl hover:bg-neutral-800 transition-colors"
                     >
                         <button
                             onClick={() => onSelect(search)}
-                            className="text-xs font-bold text-slate-300 group-hover:text-white"
+                            className="text-xs font-bold text-neutral-300 group-hover:text-white"
                         >
                             {search}
                         </button>
@@ -53,9 +53,9 @@ export function RecentSearches({
                                 e.stopPropagation();
                                 onRemove(search);
                             }}
-                            className="p-0.5 hover:bg-slate-700 rounded-full transition-colors"
+                            className="p-0.5 hover:bg-neutral-700 rounded-full transition-colors"
                         >
-                            <X size={12} className="text-slate-500" />
+                            <X size={12} className="text-neutral-500" />
                         </button>
                     </div>
                 ))}

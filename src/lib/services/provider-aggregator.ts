@@ -22,6 +22,10 @@ export interface ProviderFetchOptions {
   timeoutMs?: number;
   shuffle?: boolean;
   requestId: string;
+  healthGate?: {
+    enabled: boolean;
+    unavailableSlugs: Set<string>;
+  };
 }
 
 const DEFAULT_OPTIONS: Partial<ProviderFetchOptions> = {
@@ -134,6 +138,17 @@ export async function fetchHomeFromProviders(
     const startTime = Date.now();
 
     try {
+      if (opts.healthGate?.enabled && opts.healthGate.unavailableSlugs.has(provider.slug)) {
+        return {
+          provider: provider.slug,
+          providerName: provider.provider,
+          dramas: [],
+          success: false,
+          error: 'provider_unavailable_by_health_gate',
+          latencyMs: 0,
+        };
+      }
+
       // Check rate limits
       const limitCheck = await limiter.checkBoth(provider.slug);
       if (!limitCheck.global.success || !limitCheck.provider.success) {

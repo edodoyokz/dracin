@@ -203,7 +203,14 @@ export const watchProgressRequestSchema = z.object({
         }),
     dramaId: z.string()
         .min(1, 'Drama ID is required')
-        .max(200, 'Drama ID too long'),
+        .max(200, 'Drama ID too long')
+        .refine(val => {
+            const isUuid = z.string().uuid().safeParse(val).success;
+            const isProviderScoped = /^[a-z0-9-]+:[\w-]+$/.test(val);
+            return isUuid || isProviderScoped;
+        }, {
+            message: 'Drama ID must be a valid UUID or provider-scoped ID (provider:id)',
+        }),
     episodeId: z.string()
         .min(1, 'Episode ID is required')
         .max(200, 'Episode ID too long')

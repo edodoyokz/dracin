@@ -402,7 +402,17 @@ describe('Watch Progress API Validation', () => {
             expect(result.success).toBe(false);
         });
 
-        it('should reject non-UUID dramaId', () => {
+        it('should accept provider-scoped dramaId', () => {
+            const result = watchProgressRequestSchema.safeParse({
+                userId: '123e4567-e89b-12d3-a456-426614174000',
+                dramaId: 'reelshort:rs-001',
+                episodeId: '123e4567-e89b-12d3-a456-426614174002',
+                progressSeconds: 120,
+            });
+            expect(result.success).toBe(true);
+        });
+
+        it('should reject invalid dramaId format', () => {
             const result = watchProgressRequestSchema.safeParse({
                 userId: '123e4567-e89b-12d3-a456-426614174000',
                 dramaId: 'not-a-uuid',

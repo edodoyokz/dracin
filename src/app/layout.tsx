@@ -1,9 +1,6 @@
-import { Inter } from 'next/font/google';
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { SkipLink, BottomNav } from '@/app/components/layout';
-
-const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'dracinhub - Drama Streaming Platform',
@@ -24,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="id">
-      <body className={`${inter.className} bg-neutral-950 text-slate-100 antialiased`}>
+      <body className="bg-neutral-950 text-slate-100 antialiased">
         <SkipLink />
         <div className="relative min-h-screen">
           <main id="main-content" className="mx-auto max-w-7xl">

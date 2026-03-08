@@ -38,18 +38,18 @@ export function SortDropdown({ value, onChange }: SortDropdownProps) {
         <div className="relative" ref={dropdownRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center space-x-2 px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors"
+                className="flex items-center space-x-2 px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-xl text-sm font-bold hover:bg-neutral-800 transition-colors"
             >
-                <span className="text-slate-400">Urutkan:</span>
+                <span className="text-neutral-400">Urutkan:</span>
                 <span>{selectedLabel}</span>
                 <ChevronDown
                     size={16}
-                    className={`text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    className={`text-neutral-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
                 />
             </button>
 
             {isOpen && (
-                <div className="absolute top-full right-0 mt-2 w-48 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden z-20">
+                <div className="absolute top-full right-0 mt-2 w-48 bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl overflow-hidden z-20">
                     {sortOptions.map((option) => (
                         <button
                             key={option.value}
@@ -58,8 +58,8 @@ export function SortDropdown({ value, onChange }: SortDropdownProps) {
                                 setIsOpen(false);
                             }}
                             className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-left transition-colors ${value === option.value
-                                    ? 'bg-red-600/10 text-red-500'
-                                    : 'hover:bg-slate-800'
+                                ? 'bg-red-600/10 text-red-500'
+                                : 'hover:bg-neutral-800'
                                 }`}
                         >
                             <span>{option.label}</span>

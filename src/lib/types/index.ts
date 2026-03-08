@@ -231,6 +231,33 @@ export interface ProviderCapabilities {
   playbackType: 'play' | 'stream' | 'video' | 'unknown';
 }
 
+export type ProviderHealthStatus = 'healthy' | 'degraded' | 'unavailable';
+
+export interface ProviderHealthSummary {
+  provider: string;
+  healthScore: number;
+  healthStatus: ProviderHealthStatus;
+}
+
+export interface HomeDiagnosticsData {
+  providerProbeSummary: {
+    providerCount: number;
+    probeCount: number;
+    ok: number;
+    skipped: number;
+    failed: number;
+    generatedAt?: string;
+  } | null;
+  homepageAnalysisSummary: {
+    providerSectionCount: number;
+    nonEmptyProviderSectionCount: number;
+    duplicateRatio: number;
+    missingCoverRatio: number;
+    generatedAt?: string;
+    sourceError?: string | null;
+  } | null;
+}
+
 export type Intent =
   | 'home'
   | 'search'

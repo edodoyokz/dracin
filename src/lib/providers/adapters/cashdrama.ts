@@ -173,7 +173,7 @@ export class CashDramaAdapter extends BaseProviderAdapter {
       const numberStr = ep.number ? String(ep.number) : null;
       
       const epId = (idStr || episodeIdStr || vidStr || epStr || episodeNoStr || numberStr || 'unknown') as string;
-      const epNo = (typeof ep.ep === 'string' ? parseInt(ep.ep) : 0) || ep.episodeNo || ep.number || 0;
+      const epNo = Number(ep.ep ?? ep.episodeNo ?? ep.number ?? 0) || 0;
       
       return {
         episodeId: `${this.slug}:${epId}`,

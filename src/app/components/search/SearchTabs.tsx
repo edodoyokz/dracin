@@ -18,7 +18,7 @@ const tabs: { id: SearchTab; label: string; icon: typeof Layers }[] = [
 
 export function SearchTabs({ activeTab, onChange, resultCount }: SearchTabsProps) {
     return (
-        <div className="border-b border-slate-800">
+        <div className="border-b border-neutral-800">
             <div className="flex space-x-1 overflow-x-auto scrollbar-hide">
                 {tabs.map((tab) => {
                     const Icon = tab.icon;
@@ -29,8 +29,8 @@ export function SearchTabs({ activeTab, onChange, resultCount }: SearchTabsProps
                             key={tab.id}
                             onClick={() => onChange(tab.id)}
                             className={`flex items-center space-x-2 px-4 py-3 text-sm font-bold whitespace-nowrap transition-colors relative ${isActive
-                                    ? 'text-red-500'
-                                    : 'text-slate-500 hover:text-slate-300'
+                                ? 'text-red-500'
+                                : 'text-neutral-500 hover:text-neutral-300'
                                 }`}
                         >
                             <Icon size={16} />

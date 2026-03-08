@@ -25,6 +25,22 @@ interface ProviderState {
     page: number;
 }
 
+function dedupeDramas(dramas: DramaCard[]): DramaCard[] {
+    const seen = new Set<string>();
+    const result: DramaCard[] = [];
+
+    for (const drama of dramas) {
+        const key = `${drama.providerSlug}:${drama.providerDramaId}`;
+        if (seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        result.push(drama);
+    }
+
+    return result;
+}
+
 export function useProvider(slug: string) {
     const [state, setState] = useState<ProviderState>({
         provider: null,
@@ -61,7 +77,7 @@ export function useProvider(slug: string) {
 
             setState(prev => ({
                 provider: result.data.provider,
-                dramas: append ? [...prev.dramas, ...result.data.dramas] : result.data.dramas,
+                dramas: dedupeDramas(append ? [...prev.dramas, ...result.data.dramas] : result.data.dramas),
                 genres: result.data.genres || [],
                 loading: false,
                 error: null,

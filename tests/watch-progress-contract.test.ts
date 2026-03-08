@@ -1,308 +1,247 @@
 /**
  * Tests for Watch Progress Identifier Contract
- * 
- * Tests the episode ID resolution logic in watch-history.ts:
- * - UUID passthrough (already a database episode.id)
- * - Provider-specific ID resolution (episode_no, provider_episode_id, slug, chapter_id)
- * - Fallback to null when episode not found
- * 
- * These tests verify the contract between the API and the database layer.
+ *
+ * Validates episode/drama identifier resolution and persistence behavior in
+ * src/lib/db/watch-history.ts.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Create mock functions
-const mockSingle = vi.fn();
+const mockEpisodeSingle = vi.fn();
+const mockDramaSingle = vi.fn();
+const mockUpdateLimit = vi.fn();
+const mockInsert = vi.fn();
+const mockUpdate = vi.fn();
+const mockFrom = vi.fn();
 
-// Create a chainable result object that supports chaining .eq() and ending with .single()
-const createChainableResult = () => {
-    const result: {
-        eq: ReturnType<typeof vi.fn>;
-        single: typeof mockSingle;
-    } = {
-        single: mockSingle,
-        eq: vi.fn(() => result),
-    };
-    return result;
+const createLookupChain = (singleMock: ReturnType<typeof vi.fn>) => {
+  const chain: {
+    eq: ReturnType<typeof vi.fn>;
+    single: ReturnType<typeof vi.fn>;
+  } = {
+    eq: vi.fn(() => chain),
+    single: singleMock,
+  };
+  return chain;
 };
 
-const mockSelect = vi.fn(() => createChainableResult());
+const createUpdateChain = () => {
+  const afterSelect: {
+    limit: ReturnType<typeof vi.fn>;
+  } = {
+    limit: mockUpdateLimit,
+  };
 
-// Create a mock that returns upsert result
-const mockUpsert = vi.fn();
+  const chain: {
+    eq: ReturnType<typeof vi.fn>;
+    is: ReturnType<typeof vi.fn>;
+    select: ReturnType<typeof vi.fn>;
+  } = {
+    eq: vi.fn(() => chain),
+    is: vi.fn(() => chain),
+    select: vi.fn(() => afterSelect),
+  };
 
-const mockFrom = vi.fn((table: string) => ({
-    select: mockSelect,
-    upsert: mockUpsert,
-}));
+  return chain;
+};
 
-// Mock the Supabase client
 vi.mock('@/lib/db/client', () => ({
-    getSupabaseClient: () => ({
-        from: mockFrom,
-    }),
+  getSupabaseClient: () => ({
+    from: mockFrom,
+  }),
 }));
 
 describe('Watch Progress Identifier Contract', () => {
-    beforeEach(() => {
-        // Clear mock call counts but keep implementations
-        mockSingle.mockClear();
-        mockSelect.mockClear();
-        mockUpsert.mockClear();
-        mockFrom.mockClear();
+  beforeEach(() => {
+    mockEpisodeSingle.mockReset();
+    mockDramaSingle.mockReset();
+    mockUpdateLimit.mockReset();
+    mockInsert.mockReset();
+    mockUpdate.mockReset();
+    mockFrom.mockReset();
 
-        // Set default implementations
-        mockUpsert.mockResolvedValue({ error: null });
-        mockSingle.mockResolvedValue({ data: null, error: null });
+    mockEpisodeSingle.mockResolvedValue({ data: null, error: null });
+    mockDramaSingle.mockResolvedValue({ data: null, error: null });
+    mockUpdateLimit.mockResolvedValue({ data: [{ id: 'watch-1' }], error: null });
+    mockInsert.mockResolvedValue({ error: null });
+    mockUpdate.mockImplementation(() => createUpdateChain());
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'episodes') {
+        return {
+          select: vi.fn(() => createLookupChain(mockEpisodeSingle)),
+        };
+      }
+      if (table === 'dramas') {
+        return {
+          select: vi.fn(() => createLookupChain(mockDramaSingle)),
+        };
+      }
+      if (table === 'watch_history') {
+        return {
+          update: mockUpdate,
+          insert: mockInsert,
+        };
+      }
+      throw new Error(`Unexpected table mock: ${table}`);
+    });
+  });
+
+  describe('resolveEpisodeId', () => {
+    it('passes UUID episode id directly without episode lookup query', async () => {
+      const { upsertWatchProgress } = await import('@/lib/db/watch-history');
+      const episodeUuid = '123e4567-e89b-12d3-a456-426614174000';
+
+      await upsertWatchProgress({
+        userId: '123e4567-e89b-12d3-a456-426614174002',
+        dramaId: '123e4567-e89b-12d3-a456-426614174001',
+        episodeId: episodeUuid,
+        progressSeconds: 100,
+        isCompleted: false,
+      });
+
+      expect(mockEpisodeSingle).not.toHaveBeenCalled();
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ episode_id: episodeUuid })
+      );
     });
 
-    describe('resolveEpisodeId - UUID Passthrough', () => {
-        it('should return UUID as-is when episodeId is already a valid UUID', async () => {
-            const uuid = '123e4567-e89b-12d3-a456-426614174000';
-            const dramaId = '123e4567-e89b-12d3-a456-426614174001';
+    it('resolves numeric episode number to episode UUID', async () => {
+      const { upsertWatchProgress } = await import('@/lib/db/watch-history');
+      const resolvedEpisodeUuid = '123e4567-e89b-12d3-a456-426614174003';
+      mockEpisodeSingle.mockResolvedValueOnce({ data: { id: resolvedEpisodeUuid }, error: null });
 
-            const { upsertWatchProgress } = await import('@/lib/db/watch-history');
+      await upsertWatchProgress({
+        userId: '123e4567-e89b-12d3-a456-426614174002',
+        dramaId: '123e4567-e89b-12d3-a456-426614174001',
+        episodeId: '15',
+        progressSeconds: 90,
+        isCompleted: false,
+      });
 
-            await upsertWatchProgress({
-                userId: '123e4567-e89b-12d3-a456-426614174002',
-                dramaId,
-                episodeId: uuid,
-                progressSeconds: 100,
-                isCompleted: false,
-            });
-
-            // Verify upsert was called with the UUID as-is
-            expect(mockUpsert).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    episode_id: uuid,
-                }),
-                expect.any(Object)
-            );
-        });
-
-        it('should recognize uppercase UUID format', async () => {
-            const uuid = '123E4567-E89B-12D3-A456-426614174000';
-            const dramaId = '123e4567-e89b-12d3-a456-426614174001';
-
-            const { upsertWatchProgress } = await import('@/lib/db/watch-history');
-
-            await upsertWatchProgress({
-                userId: '123e4567-e89b-12d3-a456-426614174002',
-                dramaId,
-                episodeId: uuid,
-                progressSeconds: 100,
-                isCompleted: false,
-            });
-
-            // Should pass through without DB lookup for episode resolution
-            expect(mockUpsert).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    episode_id: uuid,
-                }),
-                expect.any(Object)
-            );
-        });
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ episode_id: resolvedEpisodeUuid })
+      );
     });
 
-    describe('resolveEpisodeId - Episode Number Resolution', () => {
-        it('should resolve numeric episode_no to UUID', async () => {
-            const dramaId = '123e4567-e89b-12d3-a456-426614174001';
-            const episodeUuid = '123e4567-e89b-12d3-a456-426614174003';
+    it('falls back from provider_episode_id to slug resolution', async () => {
+      const { upsertWatchProgress } = await import('@/lib/db/watch-history');
+      const resolvedEpisodeUuid = '123e4567-e89b-12d3-a456-426614174003';
+      mockEpisodeSingle
+        .mockResolvedValueOnce({ data: null, error: null }) // provider_episode_id
+        .mockResolvedValueOnce({ data: { id: resolvedEpisodeUuid }, error: null }); // slug
 
-            const { upsertWatchProgress } = await import('@/lib/db/watch-history');
+      await upsertWatchProgress({
+        userId: '123e4567-e89b-12d3-a456-426614174002',
+        dramaId: '123e4567-e89b-12d3-a456-426614174001',
+        episodeId: 'episode-15-the-reveal',
+        progressSeconds: 45,
+        isCompleted: false,
+      });
 
-            // Setup mock for episode lookup by episode_no - first call succeeds
-            mockSingle.mockResolvedValueOnce({ data: { id: episodeUuid }, error: null });
+      expect(mockEpisodeSingle).toHaveBeenCalledTimes(2);
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ episode_id: resolvedEpisodeUuid })
+      );
+    });
+  });
 
-            await upsertWatchProgress({
-                userId: '123e4567-e89b-12d3-a456-426614174002',
-                dramaId,
-                episodeId: '15', // Numeric episode number
-                progressSeconds: 100,
-                isCompleted: false,
-            });
+  describe('drama identifier resolution', () => {
+    it('resolves provider-scoped drama id before persistence', async () => {
+      const { upsertWatchProgress } = await import('@/lib/db/watch-history');
+      const resolvedDramaUuid = '123e4567-e89b-12d3-a456-426614174011';
+      mockDramaSingle.mockResolvedValueOnce({ data: { id: resolvedDramaUuid }, error: null });
 
-            // Verify the resolved UUID was used in upsert
-            expect(mockUpsert).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    episode_id: episodeUuid,
-                }),
-                expect.any(Object)
-            );
-        });
+      await upsertWatchProgress({
+        userId: '123e4567-e89b-12d3-a456-426614174002',
+        dramaId: 'reelshort:rs-001',
+        episodeId: '123e4567-e89b-12d3-a456-426614174003',
+        progressSeconds: 60,
+        isCompleted: false,
+      });
 
-        it('should handle string numeric episode ID', async () => {
-            const dramaId = '123e4567-e89b-12d3-a456-426614174001';
-            const episodeUuid = '123e4567-e89b-12d3-a456-426614174003';
+      expect(mockDramaSingle).toHaveBeenCalledTimes(1);
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ drama_id: resolvedDramaUuid })
+      );
+    });
+  });
 
-            const { upsertWatchProgress } = await import('@/lib/db/watch-history');
+  describe('persistence strategy', () => {
+    it('uses update-first and skips insert when update affects row', async () => {
+      const { upsertWatchProgress } = await import('@/lib/db/watch-history');
+      mockUpdateLimit.mockResolvedValueOnce({ data: [{ id: 'watch-1' }], error: null });
 
-            mockSingle.mockResolvedValueOnce({ data: { id: episodeUuid }, error: null });
+      await upsertWatchProgress({
+        userId: '123e4567-e89b-12d3-a456-426614174002',
+        dramaId: '123e4567-e89b-12d3-a456-426614174001',
+        episodeId: '123e4567-e89b-12d3-a456-426614174003',
+        progressSeconds: 120,
+        isCompleted: false,
+      });
 
-            await upsertWatchProgress({
-                userId: '123e4567-e89b-12d3-a456-426614174002',
-                dramaId,
-                episodeId: '1', // String "1"
-                progressSeconds: 100,
-                isCompleted: false,
-            });
-
-            expect(mockUpsert).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    episode_id: episodeUuid,
-                }),
-                expect.any(Object)
-            );
-        });
+      expect(mockInsert).not.toHaveBeenCalled();
     });
 
-    describe('resolveEpisodeId - Provider Episode ID Resolution', () => {
-        it('should resolve provider_episode_id when episode_no lookup fails', async () => {
-            const dramaId = '123e4567-e89b-12d3-a456-426614174001';
-            const episodeUuid = '123e4567-e89b-12d3-a456-426614174003';
-            const providerEpisodeId = 'ep-chapter-15-abc';
+    it('falls back to insert when update affects no rows', async () => {
+      const { upsertWatchProgress } = await import('@/lib/db/watch-history');
+      mockUpdateLimit.mockResolvedValueOnce({ data: [], error: null });
 
-            const { upsertWatchProgress } = await import('@/lib/db/watch-history');
+      await upsertWatchProgress({
+        userId: '123e4567-e89b-12d3-a456-426614174002',
+        dramaId: '123e4567-e89b-12d3-a456-426614174001',
+        episodeId: '123e4567-e89b-12d3-a456-426614174003',
+        progressSeconds: 120,
+        isCompleted: false,
+      });
 
-            // First call (episode_no lookup) fails - not a number or not found
-            // Second call (provider_episode_id lookup) succeeds
-            mockSingle
-                .mockResolvedValueOnce({ data: null, error: { code: 'PGRST116' } }) // episode_no fails
-                .mockResolvedValueOnce({ data: { id: episodeUuid }, error: null }); // provider_episode_id succeeds
-
-            await upsertWatchProgress({
-                userId: '123e4567-e89b-12d3-a456-426614174002',
-                dramaId,
-                episodeId: providerEpisodeId,
-                progressSeconds: 100,
-                isCompleted: false,
-            });
-
-            expect(mockUpsert).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    episode_id: episodeUuid,
-                }),
-                expect.any(Object)
-            );
-        });
+      expect(mockInsert).toHaveBeenCalledTimes(1);
+      expect(mockInsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user_id: '123e4567-e89b-12d3-a456-426614174002',
+          drama_id: '123e4567-e89b-12d3-a456-426614174001',
+        })
+      );
     });
 
-    describe('resolveEpisodeId - Slug Resolution', () => {
-        it('should resolve by slug when other lookups fail', async () => {
-            const dramaId = '123e4567-e89b-12d3-a456-426614174001';
-            const episodeUuid = '123e4567-e89b-12d3-a456-426614174003';
-            const slug = 'episode-15-the-reveal';
+    it('throws when update query fails', async () => {
+      const { upsertWatchProgress } = await import('@/lib/db/watch-history');
+      mockUpdateLimit.mockResolvedValueOnce({ data: null, error: { message: 'Database error' } });
 
-            const { upsertWatchProgress } = await import('@/lib/db/watch-history');
-
-            // episode_no fails, provider_episode_id fails, slug succeeds
-            mockSingle
-                .mockResolvedValueOnce({ data: null, error: { code: 'PGRST116' } })
-                .mockResolvedValueOnce({ data: null, error: { code: 'PGRST116' } })
-                .mockResolvedValueOnce({ data: { id: episodeUuid }, error: null });
-
-            await upsertWatchProgress({
-                userId: '123e4567-e89b-12d3-a456-426614174002',
-                dramaId,
-                episodeId: slug,
-                progressSeconds: 100,
-                isCompleted: false,
-            });
-
-            expect(mockUpsert).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    episode_id: episodeUuid,
-                }),
-                expect.any(Object)
-            );
-        });
+      await expect(
+        upsertWatchProgress({
+          userId: '123e4567-e89b-12d3-a456-426614174002',
+          dramaId: '123e4567-e89b-12d3-a456-426614174001',
+          episodeId: '123e4567-e89b-12d3-a456-426614174003',
+          progressSeconds: 100,
+          isCompleted: false,
+        })
+      ).rejects.toThrow('Failed to save watch progress');
     });
+  });
 
-    describe('upsertWatchProgress - Error Handling', () => {
-        it('should throw error when upsert fails', async () => {
-            const { upsertWatchProgress } = await import('@/lib/db/watch-history');
+  describe('data transformation', () => {
+    it('transforms payload to snake_case and adds last_watched_at', async () => {
+      const { upsertWatchProgress } = await import('@/lib/db/watch-history');
 
-            mockUpsert.mockResolvedValueOnce({
-                error: { message: 'Database error' },
-            });
+      await upsertWatchProgress({
+        userId: '123e4567-e89b-12d3-a456-426614174002',
+        dramaId: '123e4567-e89b-12d3-a456-426614174001',
+        episodeId: '123e4567-e89b-12d3-a456-426614174003',
+        progressSeconds: 150,
+        isCompleted: true,
+      });
 
-            await expect(
-                upsertWatchProgress({
-                    userId: '123e4567-e89b-12d3-a456-426614174002',
-                    dramaId: '123e4567-e89b-12d3-a456-426614174001',
-                    episodeId: '123e4567-e89b-12d3-a456-426614174003',
-                    progressSeconds: 100,
-                    isCompleted: false,
-                })
-            ).rejects.toThrow('Failed to save watch progress');
-        });
+      const payload = mockUpdate.mock.calls[0]?.[0];
+      expect(payload).toMatchObject({
+        user_id: '123e4567-e89b-12d3-a456-426614174002',
+        drama_id: '123e4567-e89b-12d3-a456-426614174001',
+        episode_id: '123e4567-e89b-12d3-a456-426614174003',
+        progress_seconds: 150,
+        is_completed: true,
+      });
+      expect(payload.last_watched_at).toBeDefined();
+      expect(Number.isNaN(Date.parse(payload.last_watched_at))).toBe(false);
     });
-
-    describe('Watch Progress Data Transformation', () => {
-        it('should transform camelCase to snake_case for database', async () => {
-            const { upsertWatchProgress } = await import('@/lib/db/watch-history');
-
-            const entry = {
-                userId: '123e4567-e89b-12d3-a456-426614174002',
-                dramaId: '123e4567-e89b-12d3-a456-426614174001',
-                episodeId: '123e4567-e89b-12d3-a456-426614174003',
-                progressSeconds: 150,
-                isCompleted: true,
-            };
-
-            await upsertWatchProgress(entry);
-
-            expect(mockUpsert).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    user_id: entry.userId,
-                    drama_id: entry.dramaId,
-                    episode_id: entry.episodeId,
-                    progress_seconds: entry.progressSeconds,
-                    is_completed: entry.isCompleted,
-                    last_watched_at: expect.any(String),
-                }),
-                expect.any(Object)
-            );
-        });
-
-        it('should include last_watched_at timestamp', async () => {
-            const { upsertWatchProgress } = await import('@/lib/db/watch-history');
-
-            await upsertWatchProgress({
-                userId: '123e4567-e89b-12d3-a456-426614174002',
-                dramaId: '123e4567-e89b-12d3-a456-426614174001',
-                episodeId: '123e4567-e89b-12d3-a456-426614174003',
-                progressSeconds: 100,
-                isCompleted: false,
-            });
-
-            const upsertCall = mockUpsert.mock.calls[0];
-            expect(upsertCall).toBeDefined();
-            expect(upsertCall[0].last_watched_at).toBeDefined();
-
-            // Verify it's a valid ISO timestamp
-            const timestamp = new Date(upsertCall[0].last_watched_at);
-            expect(timestamp).toBeInstanceOf(Date);
-            expect(timestamp.getTime()).toBeLessThanOrEqual(Date.now());
-        });
-
-        it('should use correct conflict target', async () => {
-            const { upsertWatchProgress } = await import('@/lib/db/watch-history');
-
-            await upsertWatchProgress({
-                userId: '123e4567-e89b-12d3-a456-426614174002',
-                dramaId: '123e4567-e89b-12d3-a456-426614174001',
-                episodeId: '123e4567-e89b-12d3-a456-426614174003',
-                progressSeconds: 100,
-                isCompleted: false,
-            });
-
-            expect(mockUpsert).toHaveBeenCalledWith(
-                expect.any(Object),
-                expect.objectContaining({
-                    onConflict: 'user_id,drama_id,episode_id',
-                })
-            );
-        });
-    });
+  });
 });
