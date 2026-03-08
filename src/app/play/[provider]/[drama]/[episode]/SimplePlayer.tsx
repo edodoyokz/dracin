@@ -32,6 +32,7 @@ export default function SimplePlayer() {
 
   const playerElementRef = useRef<HTMLVideoElement | null>(null);
   const playerInstanceRef = useRef<Player | null>(null);
+  const shouldAutoplayRef = useRef(true);
   const [playbackData, setPlaybackData] = useState<PlaybackResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -128,6 +129,7 @@ export default function SimplePlayer() {
       const currentIndex = episodes.findIndex((ep) => ep.episodeNo === episodeNo);
       const nextEpisode = episodes[currentIndex + 1];
       if (nextEpisode && !nextEpisode.isLocked) {
+        shouldAutoplayRef.current = true;
         router.push(`/play/${provider}/${dramaId}/${nextEpisode.episodeNo}`);
       }
     };
@@ -182,9 +184,12 @@ export default function SimplePlayer() {
         applySubtitleSelection();
       });
 
-      void player.play()?.catch(() => {
-        // Browser autoplay restrictions are acceptable; native controls remain available.
-      });
+      if (shouldAutoplayRef.current) {
+        void player.play()?.catch(() => {
+          // Browser autoplay restrictions are acceptable; native controls remain available.
+        });
+      }
+      shouldAutoplayRef.current = false;
     });
   }, [playbackData, subtitleTracks]);
 
@@ -199,6 +204,7 @@ export default function SimplePlayer() {
 
   const handleEpisodeSelect = (selectedEpisodeNo: number) => {
     if (selectedEpisodeNo !== episodeNo) {
+      shouldAutoplayRef.current = true;
       router.push(`/play/${provider}/${dramaId}/${selectedEpisodeNo}`);
     }
     setShowDrawer(false);
