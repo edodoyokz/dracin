@@ -511,6 +511,7 @@ export class NetShortAdapter extends GenericProviderAdapter {
           return {
             streamUrl,
             expiresAt: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+            subtitles: this.extractSubtitles(obj),
           };
         }
       }

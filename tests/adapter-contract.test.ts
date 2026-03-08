@@ -578,11 +578,23 @@ describe('NetShortAdapter', () => {
                 data: {
                     episodeId: '2025422871068672015',
                     videos: [{ url: 'https://cdn.example.com/netshort-video.mp4' }],
+                    subtitles: [
+                        {
+                            language: 'id_ID',
+                            format: 'webvtt',
+                            url: 'https://cdn.example.com/netshort-subtitle.vtt',
+                        },
+                    ],
                 },
             });
 
             assertValidPlaybackResponse(result);
             expect(result.streamUrl).toBe('https://cdn.example.com/netshort-video.mp4');
+            expect(result.subtitles).toHaveLength(1);
+            expect(result.subtitles?.[0]).toMatchObject({
+                src: 'https://cdn.example.com/netshort-subtitle.vtt',
+                srclang: 'id_ID',
+            });
         });
     });
 });
