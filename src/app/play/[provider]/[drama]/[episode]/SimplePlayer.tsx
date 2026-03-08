@@ -23,6 +23,19 @@ function getPreferredSubtitleTracks(subtitles: SubtitleTrack[]): SubtitleTrack[]
   });
 }
 
+function prefersNativeTextTracks(): boolean {
+  if (typeof navigator === 'undefined') return false;
+
+  const userAgent = navigator.userAgent || '';
+  const platform = navigator.platform || '';
+  const touchPoints = navigator.maxTouchPoints || 0;
+  const isAppleMobile = /iPhone|iPod/i.test(userAgent)
+    || (/iPad/i.test(userAgent))
+    || (platform === 'MacIntel' && touchPoints > 1);
+
+  return isAppleMobile;
+}
+
 export default function SimplePlayer() {
   const params = useParams();
   const router = useRouter();
@@ -41,6 +54,7 @@ export default function SimplePlayer() {
   const [showDrawer, setShowDrawer] = useState(false);
 
   const subtitleTracks = useMemo(() => getPreferredSubtitleTracks(playbackData?.subtitles || []), [playbackData?.subtitles]);
+  const useNativeTextTracks = useMemo(() => prefersNativeTextTracks(), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,7 +131,7 @@ export default function SimplePlayer() {
           pictureInPictureToggle: false,
         },
         html5: {
-          nativeTextTracks: false,
+          nativeTextTracks: useNativeTextTracks,
         },
       });
     }
@@ -140,7 +154,7 @@ export default function SimplePlayer() {
     return () => {
       player.off('ended', handleEnded);
     };
-  }, [episodes, episodeNo, provider, dramaId, router]);
+  }, [episodes, episodeNo, provider, dramaId, router, useNativeTextTracks]);
 
   useEffect(() => {
     const player = playerInstanceRef.current;
@@ -171,11 +185,19 @@ export default function SimplePlayer() {
 
     const applySubtitleSelection = () => {
       const textTracks = player.textTracks() as unknown as ArrayLike<TextTrack | undefined>;
+      let hasShownDefault = false;
+
       for (let i = 0; i < textTracks.length; i += 1) {
         const textTrack = textTracks[i];
         if (!textTrack) continue;
         const isDefault = subtitleTracks.some((track) => track.default && track.label === textTrack.label);
-        textTrack.mode = isDefault ? 'showing' : 'disabled';
+
+        if (isDefault && !hasShownDefault) {
+          textTrack.mode = 'showing';
+          hasShownDefault = true;
+        } else {
+          textTrack.mode = 'disabled';
+        }
       }
     };
 
@@ -191,7 +213,7 @@ export default function SimplePlayer() {
       }
       shouldAutoplayRef.current = false;
     });
-  }, [playbackData, subtitleTracks]);
+  }, [playbackData, subtitleTracks, useNativeTextTracks]);
 
   useEffect(() => {
     return () => {
