@@ -108,35 +108,53 @@ export async function GET(request: Request): Promise<NextResponse> {
     let resolvedEpisodeId = episodeId;
 
     if (/^\d+$/.test(episodeId)) {
-      const drama = await getDramaByProviderId(provider, dramaId);
-      if (drama) {
-        const episodes = await getEpisodesByDramaId(drama.id);
-        const numericEpisode = Number.parseInt(episodeId, 10);
-        const matched = episodes.find((ep) => ep.episodeNo === numericEpisode);
+      try {
+        const drama = await getDramaByProviderId(provider, dramaId);
+        if (drama) {
+          const episodes = await getEpisodesByDramaId(drama.id);
+          const numericEpisode = Number.parseInt(episodeId, 10);
+          const matched = episodes.find((ep) => ep.episodeNo === numericEpisode);
 
-        if (matched) {
-          resolvedEpisodeId = provider === 'dramanova'
-            ? String(matched.episodeNo)
-            : (matched.chapterId || matched.providerEpisodeId || episodeId);
+          if (matched) {
+            resolvedEpisodeId = provider === 'dramanova' || provider === 'netshort'
+              ? String(matched.episodeNo)
+              : (matched.chapterId || matched.providerEpisodeId || episodeId);
 
-          logger.info('playback_episode_resolved', {
-            requestId,
-            provider,
-            dramaId,
-            requestedEpisodeId: episodeId,
-            resolvedEpisodeId,
-          });
+            logger.info('playback_episode_resolved', {
+              requestId,
+              provider,
+              dramaId,
+              requestedEpisodeId: episodeId,
+              resolvedEpisodeId,
+            });
+          }
         }
+      } catch (error) {
+        logger.warn('playback_episode_resolution_skipped', {
+          requestId,
+          provider,
+          dramaId,
+          requestedEpisodeId: episodeId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
       }
     }
 
-    const cache = getCacheManager();
+    let cache: ReturnType<typeof getCacheManager> | null = null;
+    try {
+      cache = getCacheManager();
+    } catch {
+      cache = null;
+    }
+
     const cacheKey = createPlaybackKey(provider, dramaId, resolvedEpisodeId);
 
-    const cached = await cache.get<PlaybackResponse>(cacheKey);
+    const cached = cache ? await cache.get<PlaybackResponse>(cacheKey) : null;
     if (cached) {
       if (await hasUnsupportedOfflineKeyStream(cached.streamUrl, provider, requestId)) {
-        await cache.delete(cacheKey);
+        if (cache) {
+          await cache.delete(cacheKey);
+        }
 
         const blockedResponse: ApiResponse<null> = {
           data: null,
@@ -164,27 +182,38 @@ export async function GET(request: Request): Promise<NextResponse> {
       return NextResponse.json(response);
     }
 
-    const entitlement = await checkEntitlement(userId, dramaId, provider);
-    if (!entitlement.allowed) {
-      logger.warn('playback_entitlement_denied', {
+    const skipEntitlementForNetshortGuest = provider === 'netshort' && userId === 'guest';
+
+    if (!skipEntitlementForNetshortGuest) {
+      const entitlement = await checkEntitlement(userId, dramaId, provider);
+      if (!entitlement.allowed) {
+        logger.warn('playback_entitlement_denied', {
+          requestId,
+          userId,
+          dramaId,
+          reason: entitlement.reason,
+        });
+
+        const response: ApiResponse<null> = {
+          data: null,
+          meta: { requestId, timestamp: new Date().toISOString() },
+          error: {
+            code: 'FORBIDDEN_SUBSCRIPTION',
+            message: entitlement.reason || 'Access denied',
+          },
+        };
+        return NextResponse.json(response, { status: 403 });
+      }
+
+      logger.info('playback_entitlement_allowed', { requestId, userId, dramaId });
+    } else {
+      logger.info('playback_entitlement_bypassed', {
         requestId,
+        provider,
         userId,
         dramaId,
-        reason: entitlement.reason,
       });
-
-      const response: ApiResponse<null> = {
-        data: null,
-        meta: { requestId, timestamp: new Date().toISOString() },
-        error: {
-          code: 'FORBIDDEN_SUBSCRIPTION',
-          message: entitlement.reason || 'Access denied',
-        },
-      };
-      return NextResponse.json(response, { status: 403 });
     }
-
-    logger.info('playback_entitlement_allowed', { requestId, userId, dramaId });
 
     const playback = await getPlaybackUrl(provider, dramaId, resolvedEpisodeId, requestId);
 
@@ -201,7 +230,9 @@ export async function GET(request: Request): Promise<NextResponse> {
       return NextResponse.json(blockedResponse, { status: 502 });
     }
 
-    await cache.set(cacheKey, playback, CACHE_TTL.PLAYBACK);
+    if (cache) {
+      await cache.set(cacheKey, playback, CACHE_TTL.PLAYBACK);
+    }
 
     const response: ApiResponse<PlaybackResponse> = {
       data: playback,
