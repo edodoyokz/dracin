@@ -37,6 +37,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.2.1",
+    "video.js": "^8.23.7",
     "zod": "^3.22.4"
   },
   "devDependencies": {

@@ -1,11 +1,27 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, List } from 'lucide-react';
+import videojs from 'video.js';
+import type Player from 'video.js/dist/types/player';
 import { getPlaybackUrl, getDramaEpisodes, getDramaDetail } from '@/lib/api-client';
-import type { EpisodeItem, DramaDetail, PlaybackResponse } from '@/lib/types';
+import type { EpisodeItem, DramaDetail, PlaybackResponse, SubtitleTrack } from '@/lib/types';
 import { EpisodeDrawer } from '@/app/components/player';
+import 'video.js/dist/video-js.css';
+
+function getPreferredSubtitleTracks(subtitles: SubtitleTrack[]): SubtitleTrack[] {
+  return subtitles.map((track, index) => {
+    const langCode = (track.srclang || '').toLowerCase();
+    const label = (track.label || '').toLowerCase();
+    const isIndonesian = ['id', 'id_id', 'in', 'indonesia'].includes(langCode) || label.includes('indonesia') || label.includes('subtitle');
+
+    return {
+      ...track,
+      default: isIndonesian || index === 0,
+    };
+  });
+}
 
 export default function SimplePlayer() {
   const params = useParams();
@@ -14,7 +30,8 @@ export default function SimplePlayer() {
   const dramaId = params.drama as string;
   const episodeNo = parseInt(params.episode as string, 10);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const playerElementRef = useRef<HTMLVideoElement | null>(null);
+  const playerInstanceRef = useRef<Player | null>(null);
   const [playbackData, setPlaybackData] = useState<PlaybackResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,41 +39,163 @@ export default function SimplePlayer() {
   const [episodes, setEpisodes] = useState<EpisodeItem[]>([]);
   const [showDrawer, setShowDrawer] = useState(false);
 
-  // Load data
+  const subtitleTracks = useMemo(() => getPreferredSubtitleTracks(playbackData?.subtitles || []), [playbackData?.subtitles]);
+
   useEffect(() => {
+    let cancelled = false;
+
     Promise.all([
       getDramaDetail(`${provider}:${dramaId}`),
       getDramaEpisodes(`${provider}:${dramaId}`),
     ]).then(([dramaData, episodesData]) => {
+      if (cancelled) return;
       if (dramaData) setDrama(dramaData.drama);
       setEpisodes(episodesData);
-    }).catch(console.error);
+    }).catch((err) => {
+      if (!cancelled) {
+        console.error(err);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [provider, dramaId]);
 
-  // Load playback URL
   useEffect(() => {
+    let cancelled = false;
+
     setLoading(true);
     setError(null);
+    setPlaybackData(null);
+
+    const existingPlayer = playerInstanceRef.current;
+    if (existingPlayer) {
+      existingPlayer.pause();
+      existingPlayer.reset();
+    }
 
     getPlaybackUrl(provider, dramaId, String(episodeNo), 'guest')
       .then((data) => {
+        if (cancelled) return;
         if (data?.streamUrl) {
           setPlaybackData(data);
         } else {
           setError('Video tidak tersedia');
         }
       })
-      .catch((err) => setError(err.message || 'Gagal memuat video'))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err.message || 'Gagal memuat video');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [provider, dramaId, episodeNo]);
 
-  const handleNextEpisode = () => {
-    const currentIndex = episodes.findIndex((ep) => ep.episodeNo === episodeNo);
-    const nextEpisode = episodes[currentIndex + 1];
-    if (nextEpisode && !nextEpisode.isLocked) {
-      router.push(`/play/${provider}/${dramaId}/${nextEpisode.episodeNo}`);
+  useEffect(() => {
+    const videoElement = playerElementRef.current;
+    if (!videoElement) return;
+
+    if (!playerInstanceRef.current) {
+      playerInstanceRef.current = videojs(videoElement, {
+        autoplay: true,
+        controls: true,
+        responsive: true,
+        fluid: true,
+        preload: 'auto',
+        playsinline: true,
+        controlBar: {
+          pictureInPictureToggle: false,
+        },
+        html5: {
+          nativeTextTracks: false,
+        },
+      });
     }
-  };
+
+    const player = playerInstanceRef.current;
+    if (!player) return;
+
+    const handleEnded = () => {
+      const currentIndex = episodes.findIndex((ep) => ep.episodeNo === episodeNo);
+      const nextEpisode = episodes[currentIndex + 1];
+      if (nextEpisode && !nextEpisode.isLocked) {
+        router.push(`/play/${provider}/${dramaId}/${nextEpisode.episodeNo}`);
+      }
+    };
+
+    player.off('ended');
+    player.on('ended', handleEnded);
+
+    return () => {
+      player.off('ended', handleEnded);
+    };
+  }, [episodes, episodeNo, provider, dramaId, router]);
+
+  useEffect(() => {
+    const player = playerInstanceRef.current;
+    if (!player || !playbackData?.streamUrl) return;
+
+    const sourceType = playbackData.mimeType || (playbackData.streamUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4');
+    player.pause();
+    player.src({ src: playbackData.streamUrl, type: sourceType });
+
+    const remoteTracks = player.remoteTextTracks();
+    if (remoteTracks && remoteTracks.length > 0) {
+      const remoteTracksList = remoteTracks as unknown as ArrayLike<unknown>;
+      const tracksToRemove = Array.from({ length: remoteTracks.length }, (_, index) => remoteTracksList[index]).filter(Boolean);
+      for (const track of tracksToRemove) {
+        player.removeRemoteTextTrack(track as HTMLTrackElement);
+      }
+    }
+
+    subtitleTracks.forEach((track) => {
+      player.addRemoteTextTrack({
+        kind: 'subtitles',
+        src: track.src,
+        srclang: track.srclang,
+        label: track.label,
+        default: track.default,
+      }, false);
+    });
+
+    const applySubtitleSelection = () => {
+      const textTracks = player.textTracks() as unknown as ArrayLike<TextTrack | undefined>;
+      for (let i = 0; i < textTracks.length; i += 1) {
+        const textTrack = textTracks[i];
+        if (!textTrack) continue;
+        const isDefault = subtitleTracks.some((track) => track.default && track.label === textTrack.label);
+        textTrack.mode = isDefault ? 'showing' : 'disabled';
+      }
+    };
+
+    player.ready(() => {
+      player.one('loadedmetadata', () => {
+        applySubtitleSelection();
+      });
+
+      void player.play()?.catch(() => {
+        // Browser autoplay restrictions are acceptable; native controls remain available.
+      });
+    });
+  }, [playbackData, subtitleTracks]);
+
+  useEffect(() => {
+    return () => {
+      if (playerInstanceRef.current) {
+        playerInstanceRef.current.dispose();
+        playerInstanceRef.current = null;
+      }
+    };
+  }, []);
 
   const handleEpisodeSelect = (selectedEpisodeNo: number) => {
     if (selectedEpisodeNo !== episodeNo) {
@@ -67,7 +206,6 @@ export default function SimplePlayer() {
 
   return (
     <div className="fixed inset-0 bg-black flex flex-col">
-      {/* Simple Header */}
       <div className="absolute top-0 left-0 right-0 z-50 p-4 bg-gradient-to-b from-black/70 to-transparent flex items-center justify-between">
         <button
           onClick={() => router.push(`/dramas/${provider}:${dramaId}`)}
@@ -75,7 +213,7 @@ export default function SimplePlayer() {
         >
           <ArrowLeft size={20} />
         </button>
-        <div className="text-white text-sm font-medium">
+        <div className="text-white text-sm font-medium max-w-[60vw] truncate text-center">
           {drama?.title || 'Loading...'} - Ep {episodeNo}
         </div>
         <button
@@ -86,7 +224,6 @@ export default function SimplePlayer() {
         </button>
       </div>
 
-      {/* Video Container */}
       <div className="flex-1 flex items-center justify-center">
         {loading && (
           <div className="text-white text-center">
@@ -107,43 +244,19 @@ export default function SimplePlayer() {
           </div>
         )}
 
-        {playbackData?.streamUrl && (
-          <video
-            ref={videoRef}
-            src={playbackData.streamUrl}
-            autoPlay
-            playsInline
-            controls
-            className="w-full h-full max-h-screen"
-            onEnded={handleNextEpisode}
-          >
-            {/* Render subtitle tracks */}
-            {(() => {
-              const subtitles = playbackData.subtitles || [];
-              const hasIndonesian = subtitles.some((sub) => ['id', 'in', 'indonesia'].includes((sub.srclang || '').toLowerCase()) || (sub.label || '').toLowerCase().includes('indonesia'));
-
-              return subtitles.map((sub, index) => {
-                const langCode = (sub.srclang || '').toLowerCase();
-                const label = (sub.label || '').toLowerCase();
-                const isIndonesian = ['id', 'in', 'indonesia'].includes(langCode) || label.includes('indonesia');
-
-                return (
-                  <track
-                    key={index}
-                    kind="subtitles"
-                    src={sub.src}
-                    srcLang={sub.srclang}
-                    label={sub.label}
-                    default={hasIndonesian ? isIndonesian : index === 0}
-                  />
-                );
-              });
-            })()}
-          </video>
-        )}
+        <div className={`w-full h-full ${loading || error ? 'hidden' : 'block'}`}>
+          <div data-vjs-player className="w-full h-full">
+            <video
+              ref={playerElementRef}
+              className="video-js vjs-big-play-centered w-full h-full max-h-screen"
+              playsInline
+              controls
+              crossOrigin="anonymous"
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Episode Drawer */}
       <EpisodeDrawer
         isOpen={showDrawer}
         onClose={() => setShowDrawer(false)}

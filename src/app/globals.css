@@ -1,5 +1,30 @@
 @import "tailwindcss";
 
+@layer components {
+  .video-js,
+  .video-js .vjs-tech,
+  .video-js .vjs-poster,
+  .video-js .vjs-control-bar {
+    font-family: inherit;
+  }
+
+  .video-js {
+    width: 100%;
+    height: 100%;
+    background: #000;
+  }
+
+  .video-js .vjs-control-bar {
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.15));
+  }
+
+  .video-js .vjs-big-play-button {
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.55);
+  }
+}
+
 @layer utilities {
   .scrollbar-hide {
     -ms-overflow-style: none;
