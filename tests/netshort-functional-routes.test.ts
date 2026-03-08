@@ -19,6 +19,7 @@ const {
   mockGetPlaybackUrl,
   mockCacheGet,
   mockCacheSet,
+  mockFetch,
 } = vi.hoisted(() => ({
   mockGetProviderBySlug: vi.fn(),
   mockGetDramasByProvider: vi.fn(),
@@ -36,6 +37,7 @@ const {
   mockGetPlaybackUrl: vi.fn(),
   mockCacheGet: vi.fn(),
   mockCacheSet: vi.fn(),
+  mockFetch: vi.fn(),
 }));
 
 vi.mock('@/lib/db/providers-db', () => ({
@@ -112,11 +114,17 @@ vi.mock('@/lib/cache/redis', () => ({
 describe('netshort functional routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', mockFetch);
     process.env.CAPTAIN_API_TOKEN = 'token';
     mockCacheGet.mockResolvedValue(null);
     mockCacheSet.mockResolvedValue(undefined);
     mockGetDramaByProviderId.mockResolvedValue(null);
     mockGetEpisodesByDramaId.mockResolvedValue([]);
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue('WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nHalo'),
+    });
   });
 
   it('provider route uses netshort category union with subtitle and dubbed audio filters', async () => {
@@ -214,6 +222,14 @@ describe('netshort functional routes', () => {
     mockGetPlaybackUrl.mockResolvedValue({
       streamUrl: 'https://cdn.example.com/stream.mp4',
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      subtitles: [
+        {
+          src: 'https://awscdn.netshort.com/subtitles/episode-1.vtt',
+          srclang: 'id_ID',
+          label: 'Indonesia',
+          default: true,
+        },
+      ],
     });
 
     const { GET } = await import('@/app/api/v1/playback/route');
@@ -224,6 +240,7 @@ describe('netshort functional routes', () => {
     expect(mockCheckEntitlement).not.toHaveBeenCalled();
     expect(mockGetPlaybackUrl).toHaveBeenCalledWith('netshort', 'net-123', '1', 'req-netshort');
     expect(payload.data.streamUrl).toContain('https://cdn.example.com/stream');
+    expect(payload.data.subtitles[0].src).toContain('/api/v1/playback?subtitleUrl=');
   });
 
   it('playback route still works when episode DB resolution throws', async () => {
@@ -240,5 +257,18 @@ describe('netshort functional routes', () => {
     expect(response.status).toBe(200);
     expect(mockGetPlaybackUrl).toHaveBeenCalledWith('netshort', 'net-123', '1', 'req-netshort');
     expect(payload.data.streamUrl).toContain('fallback.mp4');
+  });
+
+  it('subtitle proxy returns proxied webvtt content', async () => {
+    const { GET } = await import('@/app/api/v1/playback/route');
+    const response = await GET(new Request('http://localhost/api/v1/playback?subtitleUrl=https%3A%2F%2Fawscdn.netshort.com%2Fsubtitles%2Fepisode-1.vtt'));
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(text).toContain('WEBVTT');
+    expect(mockFetch).toHaveBeenCalledWith('https://awscdn.netshort.com/subtitles/episode-1.vtt', expect.objectContaining({
+      method: 'GET',
+      cache: 'no-store',
+    }));
   });
 });

@@ -5,7 +5,7 @@ import { getDramaByProviderId, getEpisodesByDramaId } from '@/lib/db/dramas';
 import { getCacheManager, createPlaybackKey, CACHE_TTL } from '@/lib/cache/redis';
 import { logger, generateRequestId } from '@/lib/observability/logger';
 import { validateSearchParams, playbackRequestSchema } from '@/lib/validation/schemas';
-import type { ApiResponse, PlaybackResponse } from '@/lib/types';
+import type { ApiResponse, PlaybackResponse, SubtitleTrack } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +57,27 @@ async function hasUnsupportedOfflineKeyStream(
   }
 }
 
+async function proxySubtitleTrack(track: SubtitleTrack, requestId: string): Promise<SubtitleTrack> {
+  try {
+    const sourceUrl = new URL(track.src);
+    const proxyUrl = new URL('/api/v1/playback', 'http://local');
+    proxyUrl.searchParams.set('subtitleUrl', sourceUrl.toString());
+    proxyUrl.searchParams.set('requestId', requestId);
+    proxyUrl.searchParams.set('srclang', track.srclang);
+    proxyUrl.searchParams.set('label', track.label);
+    if (track.default) {
+      proxyUrl.searchParams.set('default', '1');
+    }
+
+    return {
+      ...track,
+      src: proxyUrl.pathname + proxyUrl.search,
+    };
+  } catch {
+    return track;
+  }
+}
+
 // Handle OPTIONS for CORS preflight
 export async function OPTIONS(): Promise<NextResponse> {
   return new NextResponse(null, { status: 204 });
@@ -67,6 +88,38 @@ export async function GET(request: Request): Promise<NextResponse> {
   const startTime = Date.now();
 
   const { searchParams } = new URL(request.url);
+
+  const subtitleUrl = searchParams.get('subtitleUrl');
+  if (subtitleUrl) {
+    try {
+      const upstream = await fetch(subtitleUrl, {
+        method: 'GET',
+        cache: 'no-store',
+      });
+
+      if (!upstream.ok) {
+        return new NextResponse('Subtitle unavailable', { status: upstream.status });
+      }
+
+      const body = await upstream.text();
+      return new NextResponse(body, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/vtt; charset=utf-8',
+          'Cache-Control': 'private, max-age=60',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    } catch (error) {
+      logger.warn('playback_subtitle_proxy_failed', {
+        requestId,
+        subtitleUrl,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+
+      return new NextResponse('Subtitle unavailable', { status: 502 });
+    }
+  }
 
   // Validate input parameters
   const validation = validateSearchParams(searchParams, playbackRequestSchema);
@@ -216,6 +269,12 @@ export async function GET(request: Request): Promise<NextResponse> {
     }
 
     const playback = await getPlaybackUrl(provider, dramaId, resolvedEpisodeId, requestId);
+
+    if (provider === 'netshort' && playback.subtitles && playback.subtitles.length > 0) {
+      playback.subtitles = await Promise.all(
+        playback.subtitles.map((track) => proxySubtitleTrack(track, requestId))
+      );
+    }
 
     if (await hasUnsupportedOfflineKeyStream(playback.streamUrl, provider, requestId)) {
       const blockedResponse: ApiResponse<null> = {
