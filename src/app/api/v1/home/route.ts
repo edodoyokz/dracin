@@ -10,10 +10,11 @@ import {
 import { getActiveProviders } from '@/lib/db/providers-db';
 import { getSupabaseClient } from '@/lib/db/client';
 import { logger, generateRequestId } from '@/lib/observability/logger';
-import { preflightEnvCheck } from '@/lib/config/env';
+import { preflightEnvCheck, getLaunchModeConfig } from '@/lib/config/env';
 import { getCacheManager } from '@/lib/cache/redis';
 import { fetchHomeFromProviders } from '@/lib/services/provider-aggregator';
 import { createProviderHealthGate, getLatestProviderHealthReport } from '@/lib/homepage/quality';
+import { getLaunchCachePolicy } from '@/lib/providers/launch-cache-policy';
 import type { ApiResponse, HomeResponseData, NewReleaseGroup, ContinueWatchingItem, GenreData, DramaCard, ProviderInfo } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -165,14 +166,20 @@ async function buildHomeData(
   const providerHealthReport = await getLatestProviderHealthReport();
   const providerHealthGate = createProviderHealthGate(providerHealthReport);
 
-  // Fetch provider content from all 41 active providers
+  // Get launch mode configuration
+  const launchConfig = getLaunchModeConfig();
+  const launchPolicy = getLaunchCachePolicy({
+    launchModeEnabled: launchConfig.enabled,
+    tierAProvidersOnly: launchConfig.tierAOnly,
+  });
+
+  // Fetch provider content with launch-aware fan-out limits
   const providerResultsPromise = fetchHomeFromProviders({
-    maxProviders: 41,
+    maxProviders: launchPolicy.maxProviderFanOut,
     shuffle: true,
     requestId,
     healthGate: providerHealthGate,
   });
-
   // Fetch all sections in parallel
   const [
     featured,
