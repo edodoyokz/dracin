@@ -42,3 +42,24 @@
 
 ## Output files
 - Full matrix CSV: `provider_capability_matrix.csv`
+
+## Tier A Launch Set (2026-03-11)
+
+### Verified Launch Providers
+| provider_slug | status | home | search | detail | episodes | playback |
+|:--------------|:-------|:-----|:-------|:-------|:---------|:---------|
+| reelshort     | ✅      | ✅    | ✅      | ✅      | ✅        | ✅        |
+| goodshort     | ✅      | ✅    | ✅      | ✅      | ✅        | ✅        |
+| flextv        | ✅      | ✅    | ✅      | ✅      | ✅        | ✅        |
+| cashdrama     | ✅      | ✅    | ✅      | ✅      | ✅        | ✅        |
+
+### Blocked Providers (require investigation)
+| provider_slug | status | issues                                   |
+|:--------------|:-------|:-----------------------------------------|
+| shortmax      | ⚠️      | Missing detail/episodes endpoints         |
+| netshort      | ⚠️      | Missing detail endpoint, playback issues  |
+| dramanova     | ⚠️      | HTTP 400/500 errors on search/detail      |
+| dramapops     | ⚠️      | HTTP 400/404/500 errors across endpoints  |
+
+### Launch Mode Configuration
+Set `LAUNCH_MODE_ENABLED=true` to restrict to verified Tier A providers only.

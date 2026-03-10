@@ -82,3 +82,33 @@ All endpoints return:
   "error": null | { "code": "...", "message": "..." }
 }
 ```
+
+## Tier A Launch Readiness (2026-03-11)
+
+### Launch Eligible Providers
+Verified and launch-ready:
+- **reelshort** - All intents verified (home, search, detail, episodes, playback)
+- **goodshort** - All intents verified
+- **flextv** - All intents verified
+- **cashdrama** - All intents verified
+
+### Blocked Providers
+Requires investigation before launch:
+- **shortmax** - Missing detail/episodes endpoints
+- **netshort** - Missing detail endpoint, playback issues
+- **dramanova** - HTTP errors on search/detail
+- **dramapops** - HTTP errors across multiple endpoints
+
+### Launch Infrastructure
+- ✅ Cache-first policy for home route (limits fan-out to 8 providers)
+- ✅ Request budget with cooldown for failing providers
+- ✅ Playback compatibility gate (HLS/MP4 only)
+- ✅ UX guardrails for unverified providers
+- ✅ Free-tier ops guardrails (25s timeout, 1024MB memory)
+
+### Environment Variables for Launch
+Set `LAUNCH_MODE_ENABLED=true` to enable:
+- Tier A only fan-out (8 providers max)
+- Extended cache TTLs
+- Strict playback gating
+- Conservative sync budgets
