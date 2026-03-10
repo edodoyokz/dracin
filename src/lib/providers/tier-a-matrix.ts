@@ -106,6 +106,10 @@ export const TIER_A_CANDIDATES = [
 export type TierACandidate = (typeof TIER_A_CANDIDATES)[number];
 
 /**
+ * Alias for TIER_A_CANDIDATES for launch cache policy usage.
+ */
+export const TIER_A_PROVIDERS: readonly string[] = [...TIER_A_CANDIDATES];
+/**
  * Creates a verification matrix for all Tier A candidates.
  */
 export function buildTierAMatrix(
